@@ -137,4 +137,53 @@ public class GeminiProviderTests
         Assert.False(result.IsSuccess);
         Assert.Contains("Invalid response", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task CompleteAsync_WithBinaryContentPart_ShouldMapInlineData()
+    {
+        var capturedRequestContent = string.Empty;
+        var fakeHandler = new FakeHttpMessageHandler(async (request, ct) =>
+        {
+            if (request.Content != null)
+            {
+                capturedRequestContent = await request.Content.ReadAsStringAsync(ct);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                candidates = new[]
+                {
+                    new
+                    {
+                        content = new
+                        {
+                            parts = new[] { new { text = "ok" } },
+                            role = "model"
+                        }
+                    }
+                }
+            }), Encoding.UTF8, "application/json");
+            return response;
+        });
+
+        var httpClient = new HttpClient(fakeHandler);
+        httpClient.DefaultRequestHeaders.Add("x-goog-api-key", "test-key");
+        var provider = new GeminiChatModelProvider(httpClient, new GeminiOptions { ApiKey = "test-key" });
+
+        await provider.CompleteAsync(new ChatRequest
+        {
+            ModelId = "gemini-1.5-flash",
+            Messages =
+            [
+                ChatMessage.User(
+                    new TextPart("Describe this image"),
+                    new BinaryPart([1, 2, 3, 4], "image/png"))
+            ]
+        });
+
+        Assert.Contains("inlineData", capturedRequestContent);
+        Assert.Contains("image/png", capturedRequestContent);
+        Assert.Contains("AQIDBA==", capturedRequestContent);
+    }
 }

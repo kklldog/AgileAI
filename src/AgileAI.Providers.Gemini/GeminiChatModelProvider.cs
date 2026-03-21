@@ -189,6 +189,31 @@ public class GeminiChatModelProvider : IChatModelProvider
         {
             parts.Add(new GeminiPart { Text = message.TextContent });
         }
+        else if (message.ContentParts != null && message.ContentParts.Count > 0)
+        {
+            foreach (var part in message.ContentParts)
+            {
+                switch (part)
+                {
+                    case TextPart textPart:
+                        parts.Add(new GeminiPart { Text = textPart.Text });
+                        break;
+                    case ImageUrlPart imagePart:
+                        parts.Add(new GeminiPart { Text = $"[image: {imagePart.Url}]" });
+                        break;
+                    case BinaryPart binaryPart:
+                        parts.Add(new GeminiPart
+                        {
+                            InlineData = new GeminiInlineData
+                            {
+                                MimeType = binaryPart.MediaType,
+                                Data = Convert.ToBase64String(binaryPart.Data)
+                            }
+                        });
+                        break;
+                }
+            }
+        }
 
         if (message.ToolCalls != null && message.ToolCalls.Count > 0)
         {
@@ -286,6 +311,13 @@ public class GeminiPart
 {
     public string? Text { get; set; }
     public GeminiFunctionCall? FunctionCall { get; set; }
+    public GeminiInlineData? InlineData { get; set; }
+}
+
+public class GeminiInlineData
+{
+    public string MimeType { get; set; } = string.Empty;
+    public string Data { get; set; } = string.Empty;
 }
 
 public class GeminiFunctionCall

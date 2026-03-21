@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using AgileAI.Abstractions;
 using AgileAI.Core;
 
@@ -52,6 +53,20 @@ public static class ServiceCollectionExtensions
             registry.Register(manifests.Select(m => (ISkill)new LocalFileSkill(m, executor)));
             return registry;
         });
+
+        return services;
+    }
+
+    public static IServiceCollection AddFileSessionStore(this IServiceCollection services, Action<FileSessionStoreOptions>? configure = null)
+    {
+        var options = new FileSessionStoreOptions();
+        configure?.Invoke(options);
+
+        services.AddSingleton(options);
+        services.RemoveAll<ISessionStore>();
+        services.AddSingleton<ISessionStore>(sp => new FileSessionStore(
+            sp.GetRequiredService<FileSessionStoreOptions>(),
+            sp.GetService<Microsoft.Extensions.Logging.ILogger<FileSessionStore>>()));
 
         return services;
     }

@@ -134,4 +134,49 @@ public class OpenAIResponsesProviderTests
         Assert.False(result.IsSuccess);
         Assert.Contains("Invalid response", result.ErrorMessage);
     }
+
+    [Fact]
+    public async Task CompleteAsync_WithContentParts_ShouldFallBackToTextMarkers()
+    {
+        var capturedRequestContent = string.Empty;
+        var fakeHandler = new FakeHttpMessageHandler(async (request, ct) =>
+        {
+            if (request.Content != null)
+            {
+                capturedRequestContent = await request.Content.ReadAsStringAsync(ct);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                status = "completed",
+                output = new[]
+                {
+                    new
+                    {
+                        type = "message",
+                        content = new[]
+                        {
+                            new { type = "text", text = "ok" }
+                        }
+                    }
+                }
+            }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }), Encoding.UTF8, "application/json");
+            return response;
+        });
+
+        var provider = new OpenAIResponsesChatModelProvider(new HttpClient(fakeHandler), new OpenAIResponsesOptions { ApiKey = "test-key" });
+
+        await provider.CompleteAsync(new ChatRequest
+        {
+            ModelId = "gpt-4o",
+            Messages =
+            [
+                ChatMessage.User(new TextPart("Review this file"), new BinaryPart([1, 2, 3], "application/octet-stream"))
+            ]
+        });
+
+        Assert.Contains("Review this file", capturedRequestContent);
+        Assert.Contains("[binary: application/octet-stream, 3 bytes]", capturedRequestContent);
+    }
 }

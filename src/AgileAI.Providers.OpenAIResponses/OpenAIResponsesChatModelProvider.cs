@@ -188,10 +188,34 @@ public class OpenAIResponsesChatModelProvider : IChatModelProvider
         return new OpenAIResponsesInputItem
         {
             Role = role,
-            Content = message.TextContent,
+            Content = BuildTextContent(message),
             ToolCallId = message.ToolCallId
         };
     }
+
+    private static string? BuildTextContent(ChatMessage message)
+    {
+        if (!string.IsNullOrEmpty(message.TextContent))
+        {
+            return message.TextContent;
+        }
+
+        if (message.ContentParts == null || message.ContentParts.Count == 0)
+        {
+            return null;
+        }
+
+        return string.Join("\n", message.ContentParts.Select(MapContentPartToText));
+    }
+
+    private static string MapContentPartToText(ContentPart part)
+        => part switch
+        {
+            TextPart text => text.Text,
+            ImageUrlPart image => $"[image: {image.Url}]",
+            BinaryPart binary => $"[binary: {binary.MediaType}, {binary.Data.Length} bytes]",
+            _ => "[unsupported content part]"
+        };
 
     private ChatResponse MapFromResponse(OpenAIResponsesResponse? response)
     {

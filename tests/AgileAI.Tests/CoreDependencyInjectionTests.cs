@@ -42,4 +42,22 @@ public class CoreDependencyInjectionTests
         Assert.NotNull(registeredProvider);
         Assert.Equal("test-provider", registeredProvider.ProviderName);
     }
+
+    [Fact]
+    public void AddFileSessionStore_ShouldReplaceDefaultSessionStore()
+    {
+        var services = new ServiceCollection();
+        var tempDirectory = Path.Combine(Path.GetTempPath(), "AgileAI.Tests", Guid.NewGuid().ToString("N"));
+
+        services.AddAgileAI();
+        services.AddFileSessionStore(options => options.RootDirectory = tempDirectory);
+
+        var serviceProvider = services.BuildServiceProvider();
+        var sessionStore = serviceProvider.GetRequiredService<ISessionStore>();
+
+        Assert.IsType<FileSessionStore>(sessionStore);
+        Assert.Equal(tempDirectory, serviceProvider.GetRequiredService<FileSessionStoreOptions>().RootDirectory);
+
+        Directory.Delete(tempDirectory, recursive: true);
+    }
 }

@@ -166,4 +166,40 @@ public class ClaudeProviderTests
 
         Assert.Contains("\"system\":\"You are helpful\"", capturedRequestContent);
     }
+
+    [Fact]
+    public async Task CompleteAsync_WithImageContentPart_ShouldFallBackToTextMarker()
+    {
+        var capturedRequestContent = string.Empty;
+        var fakeHandler = new FakeHttpMessageHandler(async (request, ct) =>
+        {
+            if (request.Content != null)
+            {
+                capturedRequestContent = await request.Content.ReadAsStringAsync(ct);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                content = new[] { new { type = "text", text = "Response" } },
+                stopReason = "end_turn"
+            }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }), Encoding.UTF8, "application/json");
+            return response;
+        });
+
+        var options = new ClaudeOptions { ApiKey = "test-key" };
+        var provider = new ClaudeChatModelProvider(new HttpClient(fakeHandler), options);
+
+        await provider.CompleteAsync(new ChatRequest
+        {
+            ModelId = "claude-3-5-sonnet-20241022",
+            Messages =
+            [
+                ChatMessage.User(new TextPart("Describe this image"), new ImageUrlPart("https://example.com/cat.png"))
+            ]
+        });
+
+        Assert.Contains("Describe this image", capturedRequestContent);
+        Assert.Contains("[image: https://example.com/cat.png]", capturedRequestContent);
+    }
 }

@@ -224,6 +224,28 @@ public class ClaudeChatModelProvider : IChatModelProvider
                 });
             }
         }
+        else if (message.ContentParts != null && message.ContentParts.Count > 0)
+        {
+            foreach (var part in message.ContentParts)
+            {
+                if (part is TextPart textPart)
+                {
+                    content.Add(new ClaudeContentBlock
+                    {
+                        Type = "text",
+                        Text = textPart.Text
+                    });
+                }
+                else
+                {
+                    content.Add(new ClaudeContentBlock
+                    {
+                        Type = "text",
+                        Text = MapUnsupportedContentPartToText(part)
+                    });
+                }
+            }
+        }
 
         if (message.ToolCalls != null && message.ToolCalls.Count > 0)
         {
@@ -300,6 +322,14 @@ public class ClaudeChatModelProvider : IChatModelProvider
             }
         };
     }
+
+    private static string MapUnsupportedContentPartToText(ContentPart part)
+        => part switch
+        {
+            ImageUrlPart image => $"[image: {image.Url}]",
+            BinaryPart binary => $"[binary: {binary.MediaType}, {binary.Data.Length} bytes]",
+            _ => "[unsupported content part]"
+        };
 }
 
 public class ClaudeMessagesRequest

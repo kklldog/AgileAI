@@ -12,6 +12,9 @@
     <Project Path="samples/ConsoleChat/ConsoleChat.csproj" />
     <Project Path="samples/ToolCallingSample/ToolCallingSample.csproj" />
     <Project Path="samples/AzureOpenAIChat/AzureOpenAIChat.csproj" />
+    <Project Path="samples/GeminiChat/GeminiChat.csproj" />
+    <Project Path="samples/ClaudeChat/ClaudeChat.csproj" />
+    <Project Path="samples/OpenAIResponsesChat/OpenAIResponsesChat.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgileAI.Tests/AgileAI.Tests.csproj" />

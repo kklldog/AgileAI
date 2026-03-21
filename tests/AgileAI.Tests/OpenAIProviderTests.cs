@@ -334,6 +334,51 @@ public class OpenAIProviderTests
     }
 
     [Fact]
+    public async Task CompleteAsync_WithContentParts_ShouldFallBackToTextMarkers()
+    {
+        var capturedRequestContent = string.Empty;
+        var fakeHandler = new FakeHttpMessageHandler(async (request, ct) =>
+        {
+            if (request.Content != null)
+            {
+                capturedRequestContent = await request.Content.ReadAsStringAsync(ct);
+            }
+
+            var response = new HttpResponseMessage(HttpStatusCode.OK);
+            response.Content = new StringContent(JsonSerializer.Serialize(new
+            {
+                choices = new[]
+                {
+                    new
+                    {
+                        message = new
+                        {
+                            role = "assistant",
+                            content = "ok"
+                        },
+                        finish_reason = "stop"
+                    }
+                }
+            }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower }), Encoding.UTF8, "application/json");
+            return response;
+        });
+
+        var provider = new OpenAIChatModelProvider(new HttpClient(fakeHandler), new OpenAIOptions { ApiKey = "test-key" });
+
+        await provider.CompleteAsync(new ChatRequest
+        {
+            ModelId = "gpt-4o",
+            Messages =
+            [
+                ChatMessage.User(new TextPart("Describe this image"), new ImageUrlPart("https://example.com/dog.png"))
+            ]
+        });
+
+        Assert.Contains("Describe this image", capturedRequestContent);
+        Assert.Contains("[image: https://example.com/dog.png]", capturedRequestContent);
+    }
+
+    [Fact]
     public async Task StreamAsync_WithToolDeltaOnlyArguments_ShouldYieldArguments()
     {
         var fakeHandler = new FakeHttpMessageHandler((request, ct) =>

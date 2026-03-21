@@ -1,74 +1,95 @@
 # AgileAI
 
-A lightweight .NET AI SDK for building chat applications with provider routing, streaming responses, tool calling, and session management.
+A lightweight .NET AI SDK for building chat applications with provider routing, streaming responses, tool calling, local skills, and session persistence.
 
-> Current status: MVP. The project already includes a working OpenAI provider, tool execution loop, streaming support, samples, and tests.
+> Current status: MVP. The project includes multiple provider integrations, a runtime/session layer, local file-based skills, runnable samples, and unit tests.
 
 ## Features
 
-- Provider-based chat abstraction
-- OpenAI Chat Completions support
+- Provider-based chat abstraction through `IChatClient` and `IChatModelProvider`
+- Supported providers:
+  - OpenAI Chat Completions
+  - Azure OpenAI Chat Completions
+  - OpenAI Responses API
+  - Gemini
+  - Claude
+- Response modes:
   - non-streaming responses
   - streaming responses
-  - tool calling
-- Azure OpenAI Chat Completions support
-  - deployment-based routing
-  - `api-key` authentication
-  - Azure-style endpoint + `api-version`
-- Chat session management with conversation history
-- In-memory tool registry and tool execution loop
-- Dependency injection support
-- Test coverage for request/response mapping and streaming edge cases
+  - tool calling / function calling
+- Conversation management:
+  - multi-turn `ChatSession`
+  - `IAgentRuntime` with session continuation by `SessionId`
+  - in-memory or file-based `ISessionStore`
+- Local skill support:
+  - local file-based skill loading
+  - prompt-based skill execution
+  - active skill continuation policy
+  - explicit skill exit phrases and manifest-driven continuation/exit hints
+- Shared content parts:
+  - text parts
+  - image URL parts with predictable text fallback on unsupported providers
+  - binary parts with Gemini inline-data support and text fallback elsewhere
+- Dependency injection helpers for core services and providers
+- Unit tests covering request mapping, response mapping, streaming edge cases, skills, and session persistence
 
 ## Project Structure
 
 ```text
 AgileAI.slnx
 ├── src/
-│   ├── AgileAI.Abstractions/         # Core contracts and models
-│   ├── AgileAI.Core/                 # Chat client, session, registries
-│   ├── AgileAI.Providers.OpenAI/     # OpenAI provider implementation
-│   └── AgileAI.Providers.AzureOpenAI/# Azure OpenAI provider implementation
+│   ├── AgileAI.Abstractions/            # Core contracts and shared models
+│   ├── AgileAI.Core/                    # Chat client, runtime, sessions, registries, stores
+│   ├── AgileAI.Providers.OpenAI/        # OpenAI Chat Completions provider
+│   ├── AgileAI.Providers.AzureOpenAI/   # Azure OpenAI Chat Completions provider
+│   ├── AgileAI.Providers.OpenAIResponses/# OpenAI Responses API provider
+│   ├── AgileAI.Providers.Gemini/        # Gemini provider
+│   └── AgileAI.Providers.Claude/        # Claude provider
 ├── samples/
-│   ├── ConsoleChat/                  # Minimal chat sample
-│   ├── ToolCallingSample/            # Tool calling sample
-│   └── AzureOpenAIChat/              # Azure OpenAI sample
+│   ├── ConsoleChat/                     # Minimal OpenAI chat sample
+│   ├── ToolCallingSample/               # OpenAI tool calling sample
+│   ├── AzureOpenAIChat/                 # Azure OpenAI sample
+│   ├── GeminiChat/                      # Gemini sample
+│   ├── ClaudeChat/                      # Claude sample
+│   └── OpenAIResponsesChat/             # OpenAI Responses API sample
 └── tests/
-    └── AgileAI.Tests/                # Unit tests
+    └── AgileAI.Tests/                   # Unit tests
 ```
 
 ## Architecture Overview
 
 ### 1. Abstractions
+
 `AgileAI.Abstractions` defines the core interfaces and models:
 
 - `IChatClient`
 - `IChatModelProvider`
 - `IChatSession`
+- `IAgentRuntime`
 - `ITool` / `IToolRegistry`
+- `ISkill`, `ISkillPlanner`, `ISkillContinuationPolicy`
+- `ISessionStore`, `ConversationState`
 - `ChatRequest`, `ChatResponse`, `ChatMessage`
 - streaming update models such as `TextDeltaUpdate`, `ToolCallDeltaUpdate`, `CompletedUpdate`, `UsageUpdate`
 
 ### 2. Core
+
 `AgileAI.Core` provides:
 
 - `ChatClient` for provider routing
 - `ChatSession` for multi-turn chat and tool loop handling
+- `DefaultAgentRuntime` for runtime execution, session continuation, and skill selection
 - in-memory registries for tools and skills
+- `InMemorySessionStore` and `FileSessionStore`
 - dependency injection helpers
 
 ### 3. Providers
-`AgileAI.Providers.OpenAI` implements standard OpenAI chat completion support.
 
-`AgileAI.Providers.AzureOpenAI` implements Azure OpenAI chat completion support with Azure-specific behavior:
-
-- deployment-based URL routing
-- `api-key` header authentication
-- `api-version` query parameter
-- request mapping and response mapping
-- streaming SSE parsing
-- tool call delta handling
-- retry support for transient failures
+- `AgileAI.Providers.OpenAI` implements OpenAI Chat Completions support
+- `AgileAI.Providers.AzureOpenAI` implements Azure OpenAI deployment-based chat completions
+- `AgileAI.Providers.OpenAIResponses` implements the OpenAI Responses API
+- `AgileAI.Providers.Gemini` implements Gemini content generation support
+- `AgileAI.Providers.Claude` implements Claude messages API support
 
 ## Quick Start
 
@@ -99,10 +120,10 @@ Console.WriteLine(response.Message?.TextContent);
 ### Dependency Injection
 
 ```csharp
-using Microsoft.Extensions.DependencyInjection;
 using AgileAI.Abstractions;
 using AgileAI.DependencyInjection;
 using AgileAI.Providers.OpenAI.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
 var services = new ServiceCollection();
 
@@ -116,9 +137,9 @@ var serviceProvider = services.BuildServiceProvider();
 var chatClient = serviceProvider.GetRequiredService<IChatClient>();
 ```
 
-## Runtime Session Continuation (SessionId)
+## Runtime Session Continuation
 
-If you use `IAgentRuntime`, pass a stable `SessionId` to reuse persisted conversation state (history + active skill):
+If you use `IAgentRuntime`, pass a stable `SessionId` to reuse persisted conversation state, including history and active skill.
 
 ```csharp
 using AgileAI.Abstractions;
@@ -135,14 +156,39 @@ var turn1 = await runtime.ExecuteAsync(new AgentRequest
 
 var turn2 = await runtime.ExecuteAsync(new AgentRequest
 {
-    SessionId = "demo-session-001", // same session id => continue context
+    SessionId = "demo-session-001",
     ModelId = "openai:gpt-4o",
     Input = "Now switch to budget options only",
     EnableSkills = true
 });
 ```
 
-By default, `AddAgileAI()` registers an in-memory `ISessionStore` and default skill continuation policy.
+By default, `AddAgileAI()` registers:
+
+- `InMemorySessionStore`
+- `DefaultSkillContinuationPolicy`
+
+`DefaultSkillContinuationPolicy` now supports a few practical continuation controls:
+
+- generic exit phrases such as `stop`, `exit`, `cancel`, `plain chat`, and `no skill`
+- stronger competing-skill detection when the new turn clearly targets another registered skill
+- optional per-skill manifest metadata:
+  - `continueOn` for phrases that should strongly keep the active skill
+  - `exitOn` for phrases that should explicitly end the active skill
+
+To persist sessions across process restarts, replace the default session store with the file-based implementation:
+
+```csharp
+using AgileAI.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+
+var services = new ServiceCollection();
+services.AddAgileAI();
+services.AddFileSessionStore(options =>
+{
+    options.RootDirectory = Path.Combine(AppContext.BaseDirectory, "sessions");
+});
+```
 
 ## Streaming Example
 
@@ -180,7 +226,20 @@ var result = await session.SendAsync("What's the weather in San Francisco?");
 
 See `samples/ToolCallingSample` for a fuller example.
 
-## OpenAI Options
+## Provider Usage
+
+### OpenAI Chat Completions
+
+#### Dependency Injection
+
+```csharp
+services.AddOpenAIProvider(options =>
+{
+    options.ApiKey = "your-api-key";
+});
+```
+
+Use model ids like `openai:gpt-4o`.
 
 `OpenAIOptions` supports:
 
@@ -190,57 +249,18 @@ See `samples/ToolCallingSample` for a fuller example.
 - `MaxRetryCount`
 - `InitialRetryDelay`
 
-Retry behavior is intended for transient failures such as:
-
-- HTTP 429
-- HTTP 5xx
-- network errors
-- request timeout
-
-## Azure OpenAI Usage
+### Azure OpenAI Chat Completions
 
 Azure OpenAI differs from standard OpenAI in a few important ways:
 
-- you route by **deployment name**, not raw model name
+- you route by deployment name, not raw model name
 - requests go to `/openai/deployments/{deployment}/chat/completions`
 - authentication uses the `api-key` header
 - requests require an `api-version` query parameter
 
-### Direct Usage
+#### Dependency Injection
 
 ```csharp
-using AgileAI.Abstractions;
-using AgileAI.Core;
-using AgileAI.Providers.AzureOpenAI;
-
-var provider = new AzureOpenAIChatModelProvider(
-    new HttpClient(),
-    new AzureOpenAIOptions
-    {
-        Endpoint = "https://your-resource.openai.azure.com/",
-        ApiKey = "your-api-key",
-        ApiVersion = "2024-02-01"
-    });
-
-var chatClient = new ChatClient();
-chatClient.RegisterProvider(provider);
-
-var response = await chatClient.CompleteAsync(new ChatRequest
-{
-    ModelId = "azure-openai:your-deployment-name",
-    Messages = [ChatMessage.User("Hello")]
-});
-```
-
-### Dependency Injection
-
-```csharp
-using AgileAI.DependencyInjection;
-using AgileAI.Providers.AzureOpenAI.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection;
-
-var services = new ServiceCollection();
-services.AddAgileAI();
 services.AddAzureOpenAIProvider(options =>
 {
     options.Endpoint = "https://your-resource.openai.azure.com/";
@@ -249,7 +269,7 @@ services.AddAzureOpenAIProvider(options =>
 });
 ```
 
-### Azure OpenAI Options
+Use model ids like `azure-openai:your-deployment-name`.
 
 `AzureOpenAIOptions` supports:
 
@@ -260,36 +280,116 @@ services.AddAzureOpenAIProvider(options =>
 - `MaxRetryCount`
 - `InitialRetryDelay`
 
+### OpenAI Responses API
+
+#### Dependency Injection
+
+```csharp
+services.AddOpenAIResponsesProvider(options =>
+{
+    options.ApiKey = "your-api-key";
+});
+```
+
+Use model ids like `openai-responses:gpt-4.1-mini`.
+
+`OpenAIResponsesOptions` supports:
+
+- `ApiKey`
+- `BaseUrl`
+- `RequestTimeout`
+- `MaxRetryCount`
+- `InitialRetryDelay`
+
+### Gemini
+
+#### Dependency Injection
+
+```csharp
+services.AddGeminiProvider(options =>
+{
+    options.ApiKey = "your-api-key";
+});
+```
+
+Use model ids like `gemini:gemini-2.5-flash`.
+
+`GeminiOptions` supports:
+
+- `ApiKey`
+- `BaseUrl`
+- `RequestTimeout`
+- `MaxRetryCount`
+- `InitialRetryDelay`
+
+### Claude
+
+#### Dependency Injection
+
+```csharp
+services.AddClaudeProvider(options =>
+{
+    options.ApiKey = "your-api-key";
+    options.Version = "2023-06-01";
+});
+```
+
+Use model ids like `claude:claude-3-5-sonnet-latest`.
+
+`ClaudeOptions` supports:
+
+- `ApiKey`
+- `BaseUrl`
+- `Version`
+- `RequestTimeout`
+- `MaxRetryCount`
+- `InitialRetryDelay`
+
 ## Streaming Semantics
 
 The current streaming implementation includes some intentional semantics worth noting:
 
-- `ToolCallDeltaUpdate.ToolCallId` is always non-null
+- `ToolCallDeltaUpdate.ToolCallId` is always non-null for OpenAI-compatible providers once an id has been observed
 - `NameDelta` is only populated when the current delta carries a tool name fragment
 - `ArgumentsDelta` is only populated when the current delta carries an arguments fragment
 - tool arguments are emitted incrementally, so consumers should accumulate them if they need the final full JSON payload
+- provider-specific streaming event shapes are normalized into shared `StreamingChatUpdate` models where possible
 
-## Test Status
+## Content Parts
 
-Recent work added and validated coverage for:
+`ChatMessage` can now carry shared `ContentPart` values through `ContentParts` or the helper `ChatMessage.User(params ContentPart[] parts)`.
 
-- OpenAI request mapping
-- Azure OpenAI deployment URL + `api-key` header behavior
-- tool definition mapping
-- tool call response mapping
-- null / empty `choices`
-- null `message`
-- usage mapping
-- multiple `finish_reason` values
-- streaming text / usage / completed updates
-- tool call delta accumulation
-- invalid streaming JSON lines
-- mixed streaming chunks containing text, tool calls, completion, and usage
+Currently supported behavior:
 
-Current result:
+- Gemini maps `BinaryPart` to inline binary data and preserves `TextPart`
+- Claude preserves `TextPart` blocks and falls back non-text parts to readable markers
+- OpenAI Chat Completions and OpenAI Responses currently degrade non-text parts to readable text markers
 
-- **52 tests passed**
-- **0 failed**
+Examples of current fallback markers:
+
+- `ImageUrlPart("https://example.com/cat.png")` -> `[image: https://example.com/cat.png]`
+- `BinaryPart(data, "application/pdf")` -> `[binary: application/pdf, N bytes]`
+
+This keeps shared message construction stable even when a provider does not yet expose full multimodal request mapping.
+
+## Test Coverage Highlights
+
+The test suite currently covers areas such as:
+
+- provider routing and default provider behavior
+- request/response mapping for all implemented providers
+- tool definition mapping and tool call response mapping
+- streaming text, usage, completion, and tool call edge cases
+- invalid streaming payload handling
+- local skill prompt injection and deduplication
+- session store create/load/update/delete flows
+- active skill continuation behavior in the runtime
+
+Run the full suite with:
+
+```bash
+dotnet test AgileAI.slnx
+```
 
 ## Build
 
@@ -297,53 +397,69 @@ Current result:
 dotnet build AgileAI.slnx
 ```
 
-## Test
-
-```bash
-dotnet test AgileAI.slnx
-```
-
 ## Run Samples
 
-For OpenAI samples:
+### OpenAI Chat Completions
 
 ```bash
 export OPENAI_API_KEY="your-api-key"
-```
-
-```bash
 cd samples/ConsoleChat
 dotnet run
 ```
 
-or:
+### OpenAI Tool Calling
 
 ```bash
+export OPENAI_API_KEY="your-api-key"
 cd samples/ToolCallingSample
 dotnet run
 ```
 
-For Azure OpenAI:
+### Azure OpenAI
 
 ```bash
 export AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/"
 export AZURE_OPENAI_API_KEY="your-api-key"
 export AZURE_OPENAI_DEPLOYMENT="your-deployment-name"
 export AZURE_OPENAI_API_VERSION="2024-02-01"
+cd samples/AzureOpenAIChat
+dotnet run
 ```
 
+### Gemini
+
 ```bash
-cd samples/AzureOpenAIChat
+export GEMINI_API_KEY="your-api-key"
+export GEMINI_MODEL="gemini-2.5-flash"
+cd samples/GeminiChat
+dotnet run
+```
+
+### Claude
+
+```bash
+export CLAUDE_API_KEY="your-api-key"
+export CLAUDE_MODEL="claude-3-5-sonnet-latest"
+export CLAUDE_API_VERSION="2023-06-01"
+cd samples/ClaudeChat
+dotnet run
+```
+
+### OpenAI Responses API
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+export OPENAI_RESPONSES_MODEL="gpt-4.1-mini"
+cd samples/OpenAIResponsesChat
 dotnet run
 ```
 
 ## Roadmap Ideas
 
-- additional providers
-- richer content parts (image/audio)
-- improved skills/runtime support
-- package publishing to NuGet
+- richer content parts such as image or audio inputs
 - more advanced tool orchestration and structured outputs
+- additional session store implementations
+- package publishing to NuGet
 
 ## License
 

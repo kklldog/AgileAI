@@ -112,3 +112,127 @@ Without continuation, every new turn must be replanned from scratch, which is un
 - [x] Runtime can persist/reload conversation state by session id
 - [x] Active skill can continue across turns without replanning every time
 - [x] Test suite stays green after implementation
+
+---
+
+## D. Sync README with current implementation
+
+### Goal
+Make project documentation accurately reflect the current provider and runtime capabilities.
+
+### Problems to solve
+- `README.md` does not yet fully reflect all implemented providers
+- project structure and sample coverage are outdated
+- session persistence documentation only covers the in-memory default path
+- sample instructions should be aligned across providers
+
+### Tasks
+- [x] Update feature list to include Gemini, Claude, and OpenAI Responses support
+- [x] Update project structure to include all current provider projects and samples
+- [x] Add direct usage and DI sections for Gemini, Claude, and OpenAI Responses
+- [x] Document session continuation and file-based session store options
+- [x] Refresh sample run instructions for all supported providers
+- [x] Replace stale hard-coded test status wording with wording that ages better
+
+### Exit criteria
+- [x] README matches the current solution structure and implemented providers
+- [x] New users can discover all major capabilities from README alone
+
+---
+
+## E. Add runnable samples for newly added providers
+
+### Goal
+Provide minimal runnable samples for all supported providers so users can validate setup quickly.
+
+### Problems to solve
+- no sample exists for Gemini
+- no sample exists for Claude
+- no sample exists for OpenAI Responses
+- current sample set does not represent full provider coverage
+
+### Tasks
+- [x] Add `samples/GeminiChat`
+- [x] Add `samples/ClaudeChat`
+- [x] Add `samples/OpenAIResponsesChat`
+- [x] Ensure each sample uses environment variables consistently
+- [x] Add each sample project to `AgileAI.slnx`
+- [x] Document sample startup in `README.md`
+
+### Exit criteria
+- [x] Every supported provider has at least one minimal sample
+- [x] Samples follow the same setup conventions and are easy to compare
+
+---
+
+## F. Add persistent session store options
+
+### Goal
+Move beyond in-memory-only session continuation so applications can survive process restarts.
+
+### Scope for first iteration
+- file-based store first
+- keep interface compatibility with existing `ISessionStore`
+- focus on single-process local persistence
+
+### Tasks
+- [x] Design a file-based `ISessionStore` implementation
+- [x] Define serialization format for `ConversationState`
+- [x] Add dependency injection support for choosing the file-based store
+- [x] Add tests for persistence across store/runtime instances
+- [x] Document configuration and behavior in `README.md`
+
+### Non-goals for this phase
+- No Redis/database store yet
+- No distributed locking yet
+- No advanced retention/summarization policy yet
+
+### Exit criteria
+- [x] Session state can survive process restart using a built-in store
+- [x] Existing runtime flow works unchanged with the new store
+
+---
+
+## G. Improve skill continuation and exit behavior
+
+### Goal
+Make active skill continuation feel more natural and controllable in real multi-turn conversations.
+
+### Problems to solve
+- current continuation policy is intentionally simple
+- active skill exit conditions are still coarse
+- planner and continuation policy boundaries become less clear as more skills are added
+
+### Tasks
+- [x] Define explicit skill exit signals
+- [x] Add a clearer topic-switch heuristic
+- [x] Allow optional per-skill continuation rules
+- [x] Add tests for explicit exit phrases and stronger competing skills
+- [x] Document updated continuation behavior if user-facing docs change
+
+### Exit criteria
+- [x] Users can naturally continue, switch, or exit a skill with predictable behavior
+- [x] Ambiguous turns produce fewer incorrect continuations
+
+---
+
+## H. Expand content part support
+
+### Goal
+Improve shared message support for non-text content across providers.
+
+### Problems to solve
+- `ContentPart` exists in abstractions but is not yet used end-to-end
+- provider capabilities differ and need graceful degradation
+- current request mapping is primarily text-oriented
+
+### Tasks
+- [x] Add shared request-side content part mapping helpers
+- [x] Add non-text content support for providers that can handle it
+- [x] Add fallback behavior for providers that cannot fully handle a content part type
+- [x] Add tests for mixed content request mapping and fallback behavior
+- [x] Document content part support and current limitations
+
+### Exit criteria
+- [x] At least one provider supports non-text content through the shared abstraction
+- [x] Unsupported provider/content combinations degrade predictably

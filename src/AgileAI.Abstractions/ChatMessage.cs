@@ -14,7 +14,14 @@ public record ChatMessage
         TextContent = text
     };
 
+    public static ChatMessage FromParts(ChatRole role, params ContentPart[] parts) => new()
+    {
+        Role = role,
+        ContentParts = parts
+    };
+
     public static ChatMessage System(string text) => FromText(ChatRole.System, text);
     public static ChatMessage User(string text) => FromText(ChatRole.User, text);
+    public static ChatMessage User(params ContentPart[] parts) => FromParts(ChatRole.User, parts);
     public static ChatMessage Assistant(string text) => FromText(ChatRole.Assistant, text);
 }
