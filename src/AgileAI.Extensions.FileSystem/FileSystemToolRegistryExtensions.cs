@@ -16,6 +16,7 @@ public static class FileSystemToolRegistryExtensions
         var pathGuard = new FileSystemPathGuard(options);
         registry.Register([
             new ListDirectoryTool(pathGuard),
+            new SearchFilesTool(pathGuard),
             new ReadFileTool(pathGuard, options),
             new WriteFileTool(pathGuard)
         ]);

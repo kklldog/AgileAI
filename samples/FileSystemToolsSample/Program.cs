@@ -38,7 +38,7 @@ var session = new ChatSessionBuilder(chatClient, $"{providerName}:{model}")
     .WithToolRegistry(toolRegistry)
     .Build();
 
-var prompt = "Use the filesystem tools to inspect the current root and summarize what files are available.";
+var prompt = "Use search_files to find mentions of AgileAI.Studio, then read the most relevant file and summarize it.";
 Console.WriteLine($"Root path: {rootPath}");
 Console.WriteLine($"Prompt: {prompt}");
 

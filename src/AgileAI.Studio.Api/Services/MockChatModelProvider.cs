@@ -92,6 +92,11 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
             return ToolCallResponse("read_file", "{\"path\":\"README.md\"}");
         }
 
+        if (lastUser.Contains("search", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolCallResponse("search_files", "{\"path\":\".\",\"query\":\"AgileAI.Studio\",\"limit\":5}");
+        }
+
         if (lastUser.Contains("list", StringComparison.OrdinalIgnoreCase) && lastUser.Contains("director", StringComparison.OrdinalIgnoreCase))
         {
             return ToolCallResponse("list_directory", "{\"path\":\".\"}");

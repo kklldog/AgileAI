@@ -22,6 +22,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(options);
         services.AddSingleton<FileSystemPathGuard>();
         services.AddScoped<ListDirectoryTool>();
+        services.AddScoped<SearchFilesTool>();
         services.AddScoped<ReadFileTool>();
         services.AddScoped<WriteFileTool>();
         services.AddScoped<FileSystemToolRegistryFactory>();

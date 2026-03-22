@@ -80,6 +80,20 @@ public class StudioWorkspaceToolsTests : IDisposable
         Assert.Contains("Hello from registry", result.Content);
     }
 
+    [Fact]
+    public async Task SearchFilesTool_ShouldReturnMatchingFiles()
+    {
+        Directory.CreateDirectory(Path.Combine(_workspaceRoot, "docs"));
+        await File.WriteAllTextAsync(Path.Combine(_workspaceRoot, "docs", "guide.md"), "AgileAI.Studio filesystem tools");
+        await File.WriteAllTextAsync(Path.Combine(_workspaceRoot, "notes.txt"), "nothing interesting here");
+        var tool = new SearchFilesTool(_pathGuard);
+
+        var result = await tool.ExecuteAsync(CreateContext("search_files", "{\"path\":\".\",\"query\":\"AgileAI.Studio\",\"limit\":5}"));
+
+        Assert.Contains("docs/guide.md", result.Content);
+        Assert.DoesNotContain("notes.txt", result.Content);
+    }
+
     private static ToolExecutionContext CreateContext(string toolName, string arguments)
         => new()
         {
