@@ -101,21 +101,21 @@ AgileAI.slnx
 
 `AgileAI.Studio` is the product layer built on top of the SDK in this repository.
 
-- `src/AgileAI.Studio.Api` provides:
-  - model and provider-connection management
-  - agent CRUD and conversation persistence
-  - streaming chat over server-sent events
-  - SQLite-backed local-first development setup
-  - a mock provider fallback for demo and e2e scenarios
-- `studio-web` provides:
-  - a modern desktop-first AI Studio interface
-  - model inventory, agent roster, and chat workspace pages
-  - Pinia-powered state management and Naive UI components
-  - Playwright e2e coverage and product screenshots
+AgileAI.Studio turns the SDK in this repo into a full local-first AI workspace.
+
+- design and validate model connections across OpenAI, Azure OpenAI, and OpenAI-compatible providers
+- create reusable agents with prompts, temperature, token limits, and pinned defaults
+- keep conversations persisted locally and chat with streaming responses in a polished desktop UI
+- verify the product with Playwright screenshots and e2e coverage
+
+**Studio Stack**
+- backend: `src/AgileAI.Studio.Api` with ASP.NET Core, EF Core, SQLite, and SSE streaming
+- frontend: `studio-web` with Vue 3, Naive UI, Pinia, and Vite
+- runtime: existing `AgileAI.Core`, `AgileAI.Abstractions`, and provider packages from this repo
 
 ## AgileAI.Studio Quick Start
 
-### Backend
+### Start The Backend
 
 ```bash
 dotnet run --project "src/AgileAI.Studio.Api/AgileAI.Studio.Api.csproj"
@@ -123,7 +123,7 @@ dotnet run --project "src/AgileAI.Studio.Api/AgileAI.Studio.Api.csproj"
 
 The API starts on `http://localhost:5117` in development and creates `studio.dev.db` automatically.
 
-### Frontend
+### Start The Frontend
 
 ```bash
 cd studio-web
@@ -133,7 +133,7 @@ npm run dev
 
 The Vite app reads `VITE_API_BASE_URL` when provided; otherwise it defaults to `http://localhost:5117/api`.
 
-### Studio Features In This Repo
+### What You Can Do Today
 
 - create provider connections for `OpenAI`, `OpenAI Compatible`, and `Azure OpenAI`
 - add and validate models with a real minimal completion check
@@ -156,14 +156,33 @@ For an OpenAI-compatible provider, configure:
 
 If you have an OpenAI-compatible endpoint for a model such as `gpt-5.4`, add it through the Models page and use the built-in `Test` action. The test sends a live minimal completion request and reports the model response.
 
+### Recommended Product Flow
+
+1. add a provider connection
+2. publish one or more models
+3. create an agent with a clear system prompt
+4. start a conversation and iterate in chat
+5. keep the screenshots and e2e suite green as the UI evolves
+
 ### Screenshots
 
 Playwright-generated screenshots are stored under `studio-web/screenshots/` after running the e2e suite.
 
-- Overview: `studio-web/screenshots/studio-overview.png`
-- Models: `studio-web/screenshots/studio-models.png`
-- Agents: `studio-web/screenshots/studio-agents.png`
-- Chat: `studio-web/screenshots/studio-chat.png`
+#### Overview
+
+![AgileAI Studio overview](studio-web/screenshots/studio-overview.png)
+
+#### Models
+
+![AgileAI Studio models page](studio-web/screenshots/studio-models.png)
+
+#### Agents
+
+![AgileAI Studio agents page](studio-web/screenshots/studio-agents.png)
+
+#### Chat
+
+![AgileAI Studio chat page](studio-web/screenshots/studio-chat.png)
 
 ### Studio Validation
 
