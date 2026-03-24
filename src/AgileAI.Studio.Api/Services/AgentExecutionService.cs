@@ -168,7 +168,7 @@ public class AgentExecutionService(
             {
                 basePrompt.Trim(),
                 "You have access to workspace tools inside the AgileAI repository.",
-                "Use list_directory or search_files before guessing file paths, use read_file to inspect text files, and use write_file only when creating or updating workspace files is necessary.",
+                "Use list_directory or search_files before guessing file paths, use read_file or read_files_batch to inspect text files, and use write_file only when creating or updating workspace files is necessary.",
                 "Never claim to have read or written a file unless you actually used the tool."
             }.Where(x => string.IsNullOrWhiteSpace(x) == false));
 

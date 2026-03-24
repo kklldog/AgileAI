@@ -7,12 +7,13 @@ public class FileSystemToolRegistryFactory(
     ListDirectoryTool listDirectoryTool,
     SearchFilesTool searchFilesTool,
     ReadFileTool readFileTool,
+    ReadFilesBatchTool readFilesBatchTool,
     WriteFileTool writeFileTool)
 {
     public IToolRegistry CreateDefaultRegistry()
     {
         var registry = new InMemoryToolRegistry();
-        registry.Register([listDirectoryTool, searchFilesTool, readFileTool, writeFileTool]);
+        registry.Register([listDirectoryTool, searchFilesTool, readFileTool, readFilesBatchTool, writeFileTool]);
         return registry;
     }
 }

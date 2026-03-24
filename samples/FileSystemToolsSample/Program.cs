@@ -38,7 +38,7 @@ var session = new ChatSessionBuilder(chatClient, $"{providerName}:{model}")
     .WithToolRegistry(toolRegistry)
     .Build();
 
-var prompt = "Use search_files to find mentions of AgileAI.Studio, then read the most relevant file and summarize it.";
+var prompt = "Use search_files to find mentions of AgileAI.Studio, then use read_files_batch to inspect the best matching files and summarize them.";
 Console.WriteLine($"Root path: {rootPath}");
 Console.WriteLine($"Prompt: {prompt}");
 

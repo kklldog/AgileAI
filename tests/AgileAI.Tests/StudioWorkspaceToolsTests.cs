@@ -94,6 +94,22 @@ public class StudioWorkspaceToolsTests : IDisposable
         Assert.DoesNotContain("notes.txt", result.Content);
     }
 
+    [Fact]
+    public async Task ReadFilesBatchTool_ShouldReturnMultipleFiles()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_workspaceRoot, "README.md"), "root readme");
+        Directory.CreateDirectory(Path.Combine(_workspaceRoot, "docs"));
+        await File.WriteAllTextAsync(Path.Combine(_workspaceRoot, "docs", "guide.md"), "guide body");
+        var tool = new ReadFilesBatchTool(_pathGuard, _options);
+
+        var result = await tool.ExecuteAsync(CreateContext("read_files_batch", "{\"paths\":[\"README.md\",\"docs/guide.md\"]}"));
+
+        Assert.Contains("Path: README.md", result.Content);
+        Assert.Contains("root readme", result.Content);
+        Assert.Contains("Path: docs/guide.md", result.Content);
+        Assert.Contains("guide body", result.Content);
+    }
+
     private static ToolExecutionContext CreateContext(string toolName, string arguments)
         => new()
         {

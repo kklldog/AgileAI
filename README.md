@@ -210,7 +210,7 @@ npm run test:e2e
 
 ### Build A File-Capable Agent In 5 Minutes
 
-You can add reusable filesystem tools to any AgileAI host without depending on Studio. The extension currently includes `list_directory`, `search_files`, `read_file`, and `write_file`.
+You can add reusable filesystem tools to any AgileAI host without depending on Studio. The extension currently includes `list_directory`, `search_files`, `read_file`, `read_files_batch`, and `write_file`.
 
 ```csharp
 using AgileAI.Abstractions;
@@ -244,7 +244,7 @@ var session = new ChatSessionBuilder(chatClient, "openapi:gpt-5.4")
     .WithToolRegistry(toolRegistry)
     .Build();
 
-var response = await session.SendAsync("Use search_files to find mentions of AgileAI.Studio, then read the most relevant file and summarize it.");
+var response = await session.SendAsync("Use search_files to find mentions of AgileAI.Studio, then use read_files_batch to inspect the best matching files and summarize them.");
 Console.WriteLine(response.Message?.TextContent);
 ```
 

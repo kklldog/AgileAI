@@ -24,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ListDirectoryTool>();
         services.AddScoped<SearchFilesTool>();
         services.AddScoped<ReadFileTool>();
+        services.AddScoped<ReadFilesBatchTool>();
         services.AddScoped<WriteFileTool>();
         services.AddScoped<FileSystemToolRegistryFactory>();
         return services;
