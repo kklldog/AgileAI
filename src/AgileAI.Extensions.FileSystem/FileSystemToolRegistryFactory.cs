@@ -10,12 +10,15 @@ public class FileSystemToolRegistryFactory(
     ReadFilesBatchTool readFilesBatchTool,
     WriteFileTool writeFileTool,
     CreateDirectoryTool createDirectoryTool,
-    MoveFileTool moveFileTool)
+    MoveFileTool moveFileTool,
+    PatchFileTool patchFileTool,
+    DeleteFileTool deleteFileTool,
+    DeleteDirectoryTool deleteDirectoryTool)
 {
     public IToolRegistry CreateDefaultRegistry()
     {
         var registry = new InMemoryToolRegistry();
-        registry.Register([listDirectoryTool, searchFilesTool, readFileTool, readFilesBatchTool, writeFileTool, createDirectoryTool, moveFileTool]);
+        registry.Register([listDirectoryTool, searchFilesTool, readFileTool, readFilesBatchTool, writeFileTool, createDirectoryTool, moveFileTool, patchFileTool, deleteFileTool, deleteDirectoryTool]);
         return registry;
     }
 }

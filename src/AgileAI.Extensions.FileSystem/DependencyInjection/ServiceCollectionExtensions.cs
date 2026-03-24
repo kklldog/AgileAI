@@ -28,6 +28,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<WriteFileTool>();
         services.AddScoped<CreateDirectoryTool>();
         services.AddScoped<MoveFileTool>();
+        services.AddScoped<PatchFileTool>();
+        services.AddScoped<DeleteFileTool>();
+        services.AddScoped<DeleteDirectoryTool>();
         services.AddScoped<FileSystemToolRegistryFactory>();
         return services;
     }

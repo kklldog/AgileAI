@@ -19,7 +19,12 @@ public static class FileSystemToolRegistryExtensions
             new SearchFilesTool(pathGuard),
             new ReadFileTool(pathGuard, options),
             new ReadFilesBatchTool(pathGuard, options),
-            new WriteFileTool(pathGuard)
+            new WriteFileTool(pathGuard),
+            new CreateDirectoryTool(pathGuard),
+            new MoveFileTool(pathGuard),
+            new PatchFileTool(pathGuard),
+            new DeleteFileTool(pathGuard, options),
+            new DeleteDirectoryTool(pathGuard, options)
         ]);
         return registry;
     }
