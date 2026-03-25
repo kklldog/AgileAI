@@ -1,6 +1,6 @@
 # SESSION_HANDOFF.md — AgileAI Studio 项目交接
 
-> 最后更新: 2025-01-22
+> 最后更新: 2025-03-25
 
 ---
 
@@ -17,7 +17,7 @@
 
 ## 2. 当前状态
 
-### ✅ 已完成 (Phase 1)
+### ✅ 已完成 (Phase 1-2)
 
 | 组件 | 状态 | 说明 |
 |------|------|------|
@@ -26,19 +26,25 @@
 | `read_file` | ✅ | 读取单个文件 |
 | `read_files_batch` | ✅ | 批量读取文件 |
 | `write_file` | ✅ | 写入/覆盖文件 |
-| **`create_directory`** | ✅ **新增** | 创建目录（含父目录） |
+| `create_directory` | ✅ | 创建目录（含父目录） |
+| **`move_file`** | ✅ **Phase 2** | 移动/重命名文件或目录 |
 
-**新增实现：**
+**Phase 1 新增实现：**
 - `CreateDirectoryTool.cs` — 完整工具实现
 - `FileSystemToolRegistryFactory.cs` — 已注册新工具
 - `ServiceCollectionExtensions.cs` — 已添加 DI 注册
 - `CreateDirectoryToolTests.cs` — 9 个单元测试覆盖所有场景
 
-### 📋 待办工作 (Phase 2-4)
+**Phase 2 新增实现：**
+- `MoveFileTool.cs` — 完整工具实现（支持文件和目录移动）
+- `MoveFileToolTests.cs` — 4 个单元测试覆盖：文件移动、目录移动、源不存在异常
+- `FileSystemToolRegistryFactory.cs` — 已注册 `move_file` 工具
+- `ServiceCollectionExtensions.cs` — 已添加 DI 注册
+
+### 📋 待办工作 (Phase 3-4)
 
 | Phase | 工具 | 优先级 | 说明 |
 |-------|------|--------|------|
-| **Phase 2** | `move_file` | 中 | 移动文件/目录，遵守 root path 约束 |
 | **Phase 3** | `patch_file` | 低 | 文本级别的 diff/patch 操作 |
 | **Phase 4** | `delete_file` | 低 | 删除文件（需更强的 guardrails） |
 | | `delete_directory` | 低 | 删除目录（需更强的 guardrails） |
@@ -127,16 +133,16 @@ dotnet test
 
 ### 当前焦点
 
-Phase 1 (`create_directory`) **已完成并通过测试**。下一步建议：
+Phase 2 (`move_file`) **已实现完成**，包含完整的工具实现和单元测试。下一步建议：
 
-1. **代码审查**: 检查 `CreateDirectoryTool.cs` 和 `CreateDirectoryToolTests.cs`
-2. **集成测试**: 在 Studio 中实际使用 `create_directory` 工具
-3. **Phase 2 规划**: 确定 `move_file` 的优先级和实现方式
+1. **代码审查**: 检查 `MoveFileTool.cs` 和 `MoveFileToolTests.cs`
+2. **集成测试**: 在 Studio 中实际使用 `move_file` 工具（注：dotnet test 运行测试需要完整 .NET SDK 环境）
+3. **Phase 3 规划**: 确定 `patch_file` 的优先级和实现方式
 
 ### 已知问题
 
 - 无已知 Blocker
-- 所有现有测试通过
+- 单元测试已编写但 dotnet SDK 环境缺失，本地测试运行被阻塞
 
 ### 建议
 
