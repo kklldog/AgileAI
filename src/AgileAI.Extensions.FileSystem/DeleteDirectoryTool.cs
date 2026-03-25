@@ -3,7 +3,7 @@ using AgileAI.Abstractions;
 
 namespace AgileAI.Extensions.FileSystem;
 
-public class DeleteDirectoryTool(FileSystemPathGuard pathGuard, FileSystemToolOptions options) : ITool
+public class DeleteDirectoryTool(FileSystemPathGuard pathGuard) : ITool
 {
     public string Name => "delete_directory";
 
