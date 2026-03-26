@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgileAI.Abstractions;
 
 namespace AgileAI.Extensions.FileSystem;
@@ -70,5 +71,12 @@ public class PatchFileTool(FileSystemPathGuard pathGuard) : ITool
 
     private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
 
-    private sealed record PatchFileRequest(string Path, string Content, bool CreateIfMissing = false);
+    private sealed class PatchFileRequest
+    {
+        public string Path { get; init; } = string.Empty;
+        public string Content { get; init; } = string.Empty;
+
+        [JsonPropertyName("create_if_missing")]
+        public bool CreateIfMissing { get; init; }
+    }
 }

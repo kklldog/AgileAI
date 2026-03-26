@@ -1,6 +1,23 @@
 import { http } from './http'
 import type { AgentItem, ChatStreamStart, ConversationItem, MessageItem, ModelItem, Overview, ProviderConnection } from '../types'
 
+const messageRoleMap = ['System', 'User', 'Assistant', 'Tool'] as const
+
+function normalizeMessageRole(role: MessageItem['role'] | number | string): MessageItem['role'] {
+  if (typeof role === 'string') {
+    return role as MessageItem['role']
+  }
+
+  return messageRoleMap[role] ?? 'Assistant'
+}
+
+function normalizeMessage(item: MessageItem & { role: MessageItem['role'] | number | string }): MessageItem {
+  return {
+    ...item,
+    role: normalizeMessageRole(item.role),
+  }
+}
+
 export interface ProviderConnectionPayload {
   name: string
   providerType: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI'
@@ -115,7 +132,7 @@ export async function createConversation(agentId: string, title?: string) {
 
 export async function getMessages(conversationId: string) {
   const { data } = await http.get<MessageItem[]>(`/conversations/${conversationId}/messages`)
-  return data
+  return data.map((item) => normalizeMessage(item as MessageItem & { role: MessageItem['role'] | number | string }))
 }
 
 export async function sendMessage(conversationId: string, content: string) {
@@ -172,10 +189,14 @@ export async function streamMessage(conversationId: string, content: string, han
       return
     }
 
-    const payload = JSON.parse(data)
-    switch (eventName) {
+        const payload = JSON.parse(data)
+        switch (eventName) {
       case 'message-created':
-        handlers.onStart?.(payload as ChatStreamStart)
+        handlers.onStart?.({
+          ...payload,
+          userMessage: normalizeMessage(payload.userMessage),
+          assistantMessage: normalizeMessage(payload.assistantMessage),
+        } as ChatStreamStart)
         break
       case 'text-delta':
         handlers.onDelta?.(payload.delta ?? '')

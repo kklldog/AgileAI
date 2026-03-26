@@ -1,20 +1,11 @@
 <template>
   <section class="page">
-<div class="page-header">
-      <p class="eyebrow">Agent studio</p>
+    <div class="page-header">
       <n-button type="primary" data-testid="create-agent" @click="openModal()">Create agent</n-button>
     </div>
 
-    <div class="grid-two">
+    <div>
       <n-card class="glass-card" embedded>
-        <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Roster</p>
-              <h3>Agent list</h3>
-            </div>
-          </div>
-        </template>
         <div v-if="store.agents.length === 0" class="empty-state">
           No agents yet. Create your first agent to get started.
         </div>
@@ -57,35 +48,6 @@
           </n-card>
         </div>
       </n-card>
-
-      <n-card class="glass-card agent-preview" embedded>
-        <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Prompt strategy</p>
-              <h3>What makes a great v1 agent</h3>
-            </div>
-          </div>
-        </template>
-        <div class="tip-stack">
-          <article class="inline-card">
-            <strong>Workspace tools included</strong>
-            <p>Studio agents now include `list_directory`, `read_file`, and `write_file` for files inside this repository workspace.</p>
-          </article>
-          <article class="inline-card">
-            <strong>Identity first</strong>
-            <p>Give the agent a clear role, tone, and boundary so outputs stay consistent.</p>
-          </article>
-          <article class="inline-card">
-            <strong>Model alignment</strong>
-            <p>Pair lightweight agents with cheaper models and reserve premium models for harder tasks.</p>
-          </article>
-          <article class="inline-card">
-            <strong>Stay editable</strong>
-            <p>Keep prompts structured enough that your team can iterate on them quickly in the UI.</p>
-          </article>
-        </div>
-      </n-card>
     </div>
 
     <n-modal v-model:show="showModal" preset="card" :title="editing ? 'Edit Agent' : 'Create Agent'" class="modal-shell modal-wide">
@@ -96,7 +58,6 @@
           <n-select v-model:value="form.studioModelId" :options="modelOptions" />
         </n-form-item>
         <n-form-item label="System prompt"><n-input v-model:value="form.systemPrompt" type="textarea" :autosize="{ minRows: 6, maxRows: 12 }" data-testid="agent-prompt-input" /></n-form-item>
-        <p class="form-hint">Default workspace tools are always available: `list_directory`, `read_file`, and `write_file`.</p>
         <div class="form-grid">
           <n-form-item label="Temperature"><n-input-number v-model:value="form.temperature" :min="0" :max="2" :step="0.1" /></n-form-item>
           <n-form-item label="Max tokens"><n-input-number v-model:value="form.maxTokens" :min="256" :max="8192" :step="128" /></n-form-item>
@@ -211,7 +172,7 @@ async function removeAgent(id: string) {
 
 function navigateToChat(agent: AgentItem) {
   router.push({
-    path: '/chat',
+    name: 'chat',
     query: { agentId: agent.id }
   })
 }

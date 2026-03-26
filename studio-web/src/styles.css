@@ -75,9 +75,29 @@ select {
 
 .shell-main {
   position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   padding: 28px;
   overflow: hidden;
+}
+
+.shell-main-bar {
+  position: relative;
+  z-index: 1;
+  width: min(1440px, 100%);
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shell-content {
+  position: relative;
+  z-index: 1;
+  width: min(1440px, 100%);
+  margin: 0 auto;
 }
 
 .ambient {
@@ -105,7 +125,6 @@ select {
 }
 
 .brand-panel,
-.status-card,
 .cta-card {
   margin: 20px;
 }
@@ -115,19 +134,6 @@ select {
   gap: 14px;
   align-items: center;
   margin-top: 28px;
-}
-
-.brand-mark {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
-  font-size: 24px;
-  font-weight: 700;
-  color: white;
-  box-shadow: var(--shadow-lg);
 }
 
 .brand-panel h1,
@@ -157,20 +163,15 @@ select {
   backdrop-filter: blur(24px);
 }
 
-.status-card,
 .cta-card {
   padding: 18px;
   border-radius: 24px;
 }
 
-.shell-tags {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
+.theme-toggle {
+  box-shadow: var(--shadow-lg);
 }
 
-.status-card h2,
 .section-heading h3 {
   font-size: 22px;
 }
@@ -218,6 +219,7 @@ select {
   z-index: 1;
   display: grid;
   gap: 18px;
+  width: 100%;
 }
 
 .page-header,
@@ -330,8 +332,9 @@ select {
 
 .page-chat .chat-layout {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 18px;
+  align-items: start;
 }
 
 .chat-heading-meta {
@@ -380,6 +383,11 @@ select {
 .chat-stage {
   display: flex;
   flex-direction: column;
+}
+
+.chat-side {
+  position: sticky;
+  top: 0;
 }
 
 .message-stack {
@@ -453,6 +461,10 @@ select {
     grid-template-columns: 1fr;
   }
 
+  .chat-side {
+    position: static;
+  }
+
   .shell {
     display: block;
   }
@@ -468,10 +480,14 @@ select {
   }
 
   .brand-panel,
-  .status-card,
   .cta-card,
   .nav-list {
     margin: 14px;
+  }
+
+  .shell-main-bar,
+  .shell-content {
+    width: 100%;
   }
 
   .page-header,

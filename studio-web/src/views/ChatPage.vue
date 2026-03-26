@@ -1,49 +1,12 @@
 <template>
   <section class="page page-chat">
     <div class="chat-layout">
-      <!-- Left Sidebar: Agents -->
-      <n-card class="glass-card chat-side" embedded>
-        <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Agents</p>
-              <h3>Select an agent</h3>
-            </div>
-          </div>
-        </template>
-
-        <div class="agent-list">
-          <n-empty v-if="store.agents.length === 0" description="No agents" size="small" />
-          <n-button
-            v-for="agent in store.agents"
-            :key="agent.id"
-            text
-            block
-            class="agent-item"
-            :class="{ active: selectedAgentId === agent.id }"
-            @click="selectAgent(agent.id)"
-          >
-            <n-space align="center" :size="8" style="width: 100%; justify-content: flex-start;">
-              <n-icon size="16"><boat-outline /></n-icon>
-              <n-ellipsis style="max-width: 140px;">{{ agent.name }}</n-ellipsis>
-              <n-tag v-if="agent.isPinned" type="success" size="tiny" round style="flex-shrink: 0;">Pinned</n-tag>
-            </n-space>
-          </n-button>
-        </div>
-      </n-card>
-
       <!-- Main Chat Area -->
       <n-card class="glass-card chat-stage" embedded>
         <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Live chat</p>
-              <h3>{{ activeConversation?.title ?? 'New chat' }}</h3>
-            </div>
-            <div class="chat-heading-meta">
-              <n-tag v-if="activeConversation" type="success">{{ activeConversation.agentName }}</n-tag>
-              <n-tag v-if="activeAgent" type="info" bordered>{{ activeAgent.modelDisplayName }}</n-tag>
-            </div>
+          <div class="chat-heading-meta">
+            <n-tag v-if="activeConversation" type="success">{{ activeConversation.agentName }}</n-tag>
+            <n-tag v-if="activeAgent" type="info" bordered>{{ activeAgent.name }} · {{ activeAgent.modelDisplayName }}</n-tag>
           </div>
         </template>
 
@@ -68,11 +31,9 @@
             data-testid="chat-input"
           />
           <div class="composer-actions">
-            <p>
-              Agent memory is persisted per conversation.
-              <span> Workspace file tools are available for repository files.</span>
-              <span v-if="store.isStreaming"> Streaming response in progress...</span>
-              <span v-if="store.streamError"> {{ store.streamError }}</span>
+            <p v-if="store.isStreaming || store.streamError">
+              <span v-if="store.isStreaming">Streaming response in progress...</span>
+              <span v-if="store.streamError">{{ store.streamError }}</span>
             </p>
             <n-button type="primary" :loading="isSending" data-testid="send-message" @click="submitPrompt">Send</n-button>
           </div>
@@ -81,30 +42,22 @@
 
       <!-- Right Sidebar: Conversation History -->
       <n-card class="glass-card chat-side" embedded>
-        <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">History</p>
-              <h3>Conversations</h3>
-            </div>
-          </div>
-        </template>
-
         <div class="conversation-list">
           <n-empty v-if="sortedConversations.length === 0" description="No conversations" size="small" />
-          <n-list hoverable clickable data-testid="conversation-list">
-            <n-list-item v-for="conv in sortedConversations" :key="conv.id">
-              <button
-                class="conversation-link"
-                :class="{ active: conv.id === store.activeConversationId }"
-                :data-testid="`conversation-${conv.id}`"
-                @click="selectConversation(conv.id)"
-              >
-                <strong>{{ conv.title }}</strong>
-                <span>{{ conv.agentName }} · {{ conv.messageCount }} messages</span>
-              </button>
-            </n-list-item>
-          </n-list>
+          <div v-else class="conversation-card-list" data-testid="conversation-list">
+            <n-card
+              v-for="conv in sortedConversations"
+              :key="conv.id"
+              embedded
+              class="conversation-entry"
+              :class="{ active: conv.id === store.activeConversationId }"
+              :data-testid="`conversation-${conv.id}`"
+              @click="selectConversation(conv.id)"
+            >
+              <strong>{{ conv.title }}</strong>
+              <span>{{ conv.agentName }} · {{ conv.messageCount }} messages</span>
+            </n-card>
+          </div>
         </div>
       </n-card>
     </div>
@@ -114,8 +67,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { useMessage, NButton, NCard, NEmpty, NInput, NList, NListItem, NSpin, NTag, NIcon, NEllipsis, NSpace } from 'naive-ui'
-import { BoatOutline } from '@vicons/ionicons5'
+import { useMessage, NButton, NCard, NEmpty, NInput, NSpin, NTag } from 'naive-ui'
 import { useStudioStore } from '../stores/studio'
 
 const route = useRoute()
@@ -157,6 +109,8 @@ function getLatestConversationForAgent(agentId: string) {
 
 async function syncAgentConversation(agentId: string) {
   selectedAgentId.value = agentId
+  prompt.value = ''
+  store.streamError = ''
   const latestConversation = getLatestConversationForAgent(agentId)
 
   if (latestConversation) {
@@ -184,9 +138,7 @@ watch(
   async (agentId) => {
     if (agentId && typeof agentId === 'string') {
       selectedAgentId.value = agentId
-      if (store.conversations.length > 0) {
-        await syncAgentConversation(agentId)
-      }
+      await syncAgentConversation(agentId)
     }
   },
   { immediate: true },
@@ -236,10 +188,6 @@ async function selectConversation(id: string) {
   await store.fetchMessages(id)
 }
 
-async function selectAgent(agentId: string) {
-  await syncAgentConversation(agentId)
-}
-
 async function submitPrompt() {
   if (!prompt.value.trim()) {
     return
@@ -276,57 +224,37 @@ async function submitPrompt() {
 </script>
 
 <style scoped>
-.conversation-link {
-  display: block;
-  width: 100%;
-  padding: 8px 12px;
-  text-align: left;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
+.conversation-card-list {
+  display: grid;
+  gap: 8px;
+}
+
+.conversation-entry {
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
-.conversation-link:hover {
-  background: var(--hover-color);
+.conversation-entry:hover {
+  transform: translateY(-1px);
 }
 
-.conversation-link.active {
+.conversation-entry.active {
   background: var(--primary-color-suppl);
-  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
-.conversation-link strong {
+.conversation-entry strong {
   display: block;
   margin-bottom: 4px;
 }
 
-.conversation-link span {
+.conversation-entry span {
   font-size: 12px;
   opacity: 0.7;
 }
 
-.agent-list,
 .conversation-list {
   max-height: 400px;
   overflow-y: auto;
-}
-
-.agent-item {
-  width: 100%;
-  justify-content: flex-start;
-  padding: 8px 12px;
-  margin-bottom: 4px;
-  border-radius: 6px;
-}
-
-.agent-item:hover {
-  background: var(--hover-color);
-}
-
-.agent-item.active {
-  background: var(--primary-color-suppl);
-  color: var(--primary-color);
 }
 </style>

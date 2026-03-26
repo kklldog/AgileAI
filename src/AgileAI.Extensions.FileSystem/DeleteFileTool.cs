@@ -55,7 +55,7 @@ public class DeleteFileTool(FileSystemPathGuard pathGuard, FileSystemToolOptions
         return new ToolResult
         {
             ToolCallId = context.ToolCall.Id,
-            Content = $"Moved to recycle bin: {pathGuard.ToRelativePath(resolvedPath)} → {relativeRecyclePath}",
+            Content = $"Moved to Recycle Bin: {pathGuard.ToRelativePath(resolvedPath)} → {relativeRecyclePath}",
             IsSuccess = true
         };
     }

@@ -50,7 +50,7 @@ public class DeleteDirectoryTool(FileSystemPathGuard pathGuard) : ITool
         return new ToolResult
         {
             ToolCallId = context.ToolCall.Id,
-            Content = $"Moved to recycle bin: {pathGuard.ToRelativePath(resolvedPath)} → {relativeRecyclePath}",
+            Content = $"Moved to Recycle Bin: {pathGuard.ToRelativePath(resolvedPath)} → {relativeRecyclePath}",
             IsSuccess = true
         };
     }
@@ -66,5 +66,9 @@ public class DeleteDirectoryTool(FileSystemPathGuard pathGuard) : ITool
 
     private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
 
-    private sealed record DeleteDirectoryRequest(string Path, bool Force = false);
+    private sealed class DeleteDirectoryRequest
+    {
+        public string Path { get; init; } = string.Empty;
+        public bool Force { get; init; }
+    }
 }

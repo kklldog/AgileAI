@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink, useRoute } from 'vue-router'
-import { NButton, NLayout, NLayoutSider, NTag } from 'naive-ui'
+import { NButton, NIcon, NLayout, NLayoutSider } from 'naive-ui'
+import { MoonOutline, SunnyOutline } from '@vicons/ionicons5'
 
 defineProps<{
   themeMode: 'light' | 'dark'
@@ -13,10 +14,8 @@ defineEmits<{
 const route = useRoute()
 
 const navItems = [
-  { label: 'Overview', path: '/' },
   { label: 'Models', path: '/models' },
   { label: 'Agents', path: '/agents' },
-  { label: 'Chat', path: '/chat' },
 ]
 </script>
 
@@ -24,23 +23,9 @@ const navItems = [
   <n-layout has-sider class="shell">
     <n-layout-sider bordered collapse-mode="width" :collapsed-width="0" :width="280" class="shell-sider">
       <div class="brand-panel">
-        <div class="brand-mark">A</div>
         <div>
           <p class="eyebrow">AgileAI Product Lab</p>
           <h1>AgileAI.Studio</h1>
-        </div>
-      </div>
-
-      <div class="status-card glass-card">
-        <div>
-          <p class="eyebrow">Version One</p>
-          <h2>Model-driven AI workspace</h2>
-        </div>
-        <div class="shell-tags">
-          <n-tag size="small" round type="success">Local-first</n-tag>
-          <n-button size="small" secondary @click="$emit('toggleTheme')">
-            {{ themeMode === 'dark' ? 'Light Mode' : 'Dark Mode' }}
-          </n-button>
         </div>
       </div>
 
@@ -68,7 +53,19 @@ const navItems = [
     <section class="shell-main">
       <div class="ambient ambient-one"></div>
       <div class="ambient ambient-two"></div>
-      <slot />
+      <div class="shell-main-bar">
+        <div></div>
+        <n-button circle secondary class="theme-toggle" @click="$emit('toggleTheme')">
+          <template #icon>
+            <n-icon>
+              <component :is="themeMode === 'dark' ? SunnyOutline : MoonOutline" />
+            </n-icon>
+          </template>
+        </n-button>
+      </div>
+      <div class="shell-content">
+        <slot />
+      </div>
     </section>
   </n-layout>
 </template>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgileAI.Abstractions;
 
 namespace AgileAI.Extensions.FileSystem;
@@ -59,5 +60,12 @@ public class MoveFileTool(FileSystemPathGuard pathGuard) : ITool
 
     private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
 
-    private sealed record MoveFileRequest(string SourcePath, string DestinationPath);
+    private sealed class MoveFileRequest
+    {
+        [JsonPropertyName("source_path")]
+        public string SourcePath { get; init; } = string.Empty;
+
+        [JsonPropertyName("destination_path")]
+        public string DestinationPath { get; init; } = string.Empty;
+    }
 }

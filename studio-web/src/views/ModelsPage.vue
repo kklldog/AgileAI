@@ -1,32 +1,24 @@
 <template>
   <section class="page">
     <div class="page-header">
-      <p class="eyebrow">Model catalog</p>
       <n-space>
         <n-button secondary type="primary" @click="openProviderModal()">Add Provider</n-button>
-        <n-button type="primary" @click="openModelModal()">New model</n-button>
       </n-space>
     </div>
 
     <div class="grid-two">
-      <n-card class="glass-card" embedded>
-        <template #header>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Provider connections</p>
-              <h3>Credentials and endpoints</h3>
-            </div>
-          </div>
-        </template>
+      <n-card class="glass-card providers-panel" embedded>
         <div v-if="store.providerConnections.length === 0" class="empty-state">
           No providers configured yet.
         </div>
-        <div v-else class="provider-grid">
+        <div v-else class="provider-grid provider-grid-single">
           <n-card
             v-for="item in store.providerConnections"
             :key="item.id"
             class="provider-card"
+            :class="{ selected: item.id === selectedProviderId }"
             embedded
+            @click="selectProvider(item.id)"
           >
             <template #header>
               <n-space align="center" justify="space-between">
@@ -45,7 +37,7 @@
                         <template #icon><n-icon><trash-outline /></n-icon></template>
                       </n-button>
                     </template>
-                    Delete this provider connection?
+                    Delete this provider?
                   </n-popconfirm>
                 </n-space>
               </n-space>
@@ -76,21 +68,26 @@
         </div>
       </n-card>
 
-      <n-card class="glass-card" embedded>
+      <n-card class="glass-card models-panel" embedded>
         <template #header>
-          <div class="section-heading">
+          <div class="models-panel-header">
             <div>
-              <p class="eyebrow">Model inventory</p>
-              <h3>Available runtime targets</h3>
+              <p class="eyebrow">Models</p>
+              <h3 class="models-panel-title">{{ selectedProvider?.name ?? 'Select a provider' }}</h3>
             </div>
+            <n-button type="primary" :disabled="!selectedProviderId" @click="openModelModal()">New model</n-button>
           </div>
         </template>
-        <div v-if="store.models.length === 0" class="empty-state">
-          No models configured yet.
+
+        <div v-if="!selectedProviderId" class="empty-state">
+          Select a provider on the left to manage its models.
+        </div>
+        <div v-else-if="selectedProviderModels.length === 0" class="empty-state">
+          No models configured for this provider yet.
         </div>
         <div v-else class="model-grid">
           <n-card
-            v-for="item in store.models"
+            v-for="item in selectedProviderModels"
             :key="item.id"
             class="model-card"
             embedded
@@ -156,7 +153,7 @@
     <!-- Model Modal -->
     <n-modal v-model:show="showModelModal" preset="card" :title="editingModel ? 'Edit Model' : 'Create Model'" class="modal-shell">
       <n-form label-placement="top">
-        <n-form-item label="Provider connection"><n-select v-model:value="modelForm.providerConnectionId" :options="providerConnectionOptions" /></n-form-item>
+        <n-form-item label="Provider"><n-select v-model:value="modelForm.providerConnectionId" :options="providerConnectionOptions" /></n-form-item>
         <n-form-item label="Display name"><n-input v-model:value="modelForm.displayName" data-testid="model-display-name-input" /></n-form-item>
         <n-form-item label="Model key / deployment"><n-input v-model:value="modelForm.modelKey" placeholder="gpt-4o-mini" data-testid="model-key-input" /></n-form-item>
         <n-form-item label="Streaming"><n-switch v-model:value="modelForm.supportsStreaming" /></n-form-item>
@@ -170,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useMessage, NButton, NCard, NForm, NFormItem, NInput, NModal, NPopconfirm, NSelect, NSpace, NSwitch, NTag, NIcon, NText, NEllipsis, NDescriptions, NDescriptionsItem, NDivider } from 'naive-ui'
 import { CreateOutline, TrashOutline, ServerOutline, CubeOutline, FlashOutline } from '@vicons/ionicons5'
 import { useStudioStore } from '../stores/studio'
@@ -184,6 +181,7 @@ const showProviderModal = ref(false)
 const showModelModal = ref(false)
 const editingProvider = ref<ProviderConnection | null>(null)
 const editingModel = ref<ModelItem | null>(null)
+const selectedProviderId = ref('')
 
 const providerForm = reactive<ProviderConnectionPayload>({
   name: '',
@@ -247,6 +245,14 @@ const providerConnectionOptions = computed(() =>
   store.providerConnections.map((item) => ({ label: `${item.name} · ${item.providerType}`, value: item.id })),
 )
 
+const selectedProvider = computed(() =>
+  store.providerConnections.find((item) => item.id === selectedProviderId.value) ?? null,
+)
+
+const selectedProviderModels = computed(() =>
+  store.models.filter((item) => item.providerConnectionId === selectedProviderId.value),
+)
+
 const isProviderValid = computed(() => {
   if (!providerForm.name.trim() || !providerForm.apiKey.trim()) {
     return false
@@ -284,6 +290,25 @@ function getModelsForProvider(providerId: string): ModelItem[] {
   return store.models.filter(m => m.providerConnectionId === providerId)
 }
 
+function selectProvider(providerId: string) {
+  selectedProviderId.value = providerId
+}
+
+watch(
+  () => store.providerConnections,
+  (providers) => {
+    if (providers.length === 0) {
+      selectedProviderId.value = ''
+      return
+    }
+
+    if (!providers.some((item) => item.id === selectedProviderId.value)) {
+      selectedProviderId.value = providers[0].id
+    }
+  },
+  { immediate: true, deep: true },
+)
+
 function resetProviderForm() {
   Object.assign(providerForm, {
     name: '',
@@ -303,7 +328,7 @@ function resetProviderForm() {
 
 function resetModelForm() {
   Object.assign(modelForm, {
-    providerConnectionId: store.providerConnections[0]?.id ?? '',
+    providerConnectionId: selectedProviderId.value || (store.providerConnections[0]?.id ?? ''),
     displayName: '',
     modelKey: '',
     supportsStreaming: true,
@@ -362,10 +387,10 @@ async function submitProvider() {
   try {
     if (editingProvider.value) {
       await store.updateProviderConnection(editingProvider.value.id, providerForm)
-      message.success('Provider connection updated')
+      message.success('Provider updated')
     } else {
       await store.createProviderConnection(providerForm)
-      message.success('Provider connection created')
+      message.success('Provider created')
     }
     showProviderModal.value = false
     resetProviderForm()
@@ -402,7 +427,7 @@ async function handleDeleteModel(id: string) {
 
 async function handleDeleteProvider(id: string) {
   await store.deleteProviderConnection(id)
-  message.success('Provider connection deleted')
+  message.success('Provider deleted')
 }
 
 async function handleTestModel(id: string) {
@@ -425,6 +450,10 @@ async function handleTestModel(id: string) {
   gap: 16px;
 }
 
+.provider-grid-single {
+  grid-template-columns: 1fr;
+}
+
 .provider-card,
 .model-card {
   transition: all 0.2s ease;
@@ -434,5 +463,30 @@ async function handleTestModel(id: string) {
 .model-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.provider-card {
+  cursor: pointer;
+}
+
+.provider-card.selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color), 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.providers-panel,
+.models-panel {
+  min-height: 640px;
+}
+
+.models-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.models-panel-title {
+  margin: 0;
 }
 </style>

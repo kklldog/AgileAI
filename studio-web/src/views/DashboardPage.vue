@@ -15,23 +15,14 @@
     </n-grid>
 
     <n-card class="glass-card">
-      <template #header>
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Recent activity</p>
-            <h3>Latest conversations</h3>
-          </div>
-        </div>
-      </template>
-
-      <div v-if="overview?.recentConversations?.length" class="list-stack">
-        <article v-for="item in overview.recentConversations" :key="item.id" class="list-row">
-          <div>
+      <div v-if="overview?.recentConversations?.length" class="recent-conversation-grid">
+        <n-card v-for="item in overview.recentConversations" :key="item.id" embedded class="recent-conversation-card">
+          <div class="recent-conversation-head">
             <strong>{{ item.title }}</strong>
-            <p>{{ item.agentName }} · {{ item.messageCount }} messages</p>
+            <span>{{ new Date(item.updatedAtUtc).toLocaleString() }}</span>
           </div>
-          <span>{{ new Date(item.updatedAtUtc).toLocaleString() }}</span>
-        </article>
+          <p>{{ item.agentName }} · {{ item.messageCount }} messages</p>
+        </n-card>
       </div>
       <div v-else class="empty-state">No conversations yet. Create an agent and start chatting.</div>
     </n-card>
@@ -53,3 +44,31 @@ const stats = computed(() => [
   { label: 'Chats', value: overview.value?.conversationCount ?? 0, hint: 'Persisted conversations' },
 ])
 </script>
+
+<style scoped>
+.recent-conversation-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.recent-conversation-card {
+  transition: all 0.2s ease;
+}
+
+.recent-conversation-card:hover {
+  transform: translateY(-1px);
+}
+
+.recent-conversation-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.recent-conversation-head span {
+  color: var(--text-color-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+</style>
