@@ -32,6 +32,19 @@ export interface ProviderConnectionPayload {
   isEnabled: boolean
 }
 
+const providerTypeMap: Record<ProviderConnectionPayload['providerType'], number> = {
+  OpenAI: 1,
+  OpenAICompatible: 2,
+  AzureOpenAI: 3,
+}
+
+function serializeProviderConnectionPayload(payload: ProviderConnectionPayload) {
+  return {
+    ...payload,
+    providerType: providerTypeMap[payload.providerType],
+  }
+}
+
 export interface ModelPayload {
   providerConnectionId: string
   displayName: string
@@ -64,12 +77,12 @@ export async function getProviderConnections() {
 }
 
 export async function createProviderConnection(payload: ProviderConnectionPayload) {
-  const { data } = await http.post<ProviderConnection>('/provider-connections', payload)
+  const { data } = await http.post<ProviderConnection>('/provider-connections', serializeProviderConnectionPayload(payload))
   return data
 }
 
 export async function updateProviderConnection(id: string, payload: ProviderConnectionPayload) {
-  const { data } = await http.put<ProviderConnection>(`/provider-connections/${id}`, payload)
+  const { data } = await http.put<ProviderConnection>(`/provider-connections/${id}`, serializeProviderConnectionPayload(payload))
   return data
 }
 

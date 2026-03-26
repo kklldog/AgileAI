@@ -30,12 +30,14 @@
             :autosize="{ minRows: 3, maxRows: 6 }"
             data-testid="chat-input"
           />
-          <div class="composer-actions">
-            <p v-if="store.isStreaming || store.streamError">
+          <div class="composer-actions chat-composer-actions">
+            <p v-if="store.isStreaming || store.streamError" class="chat-status-line">
               <span v-if="store.isStreaming">Streaming response in progress...</span>
               <span v-if="store.streamError">{{ store.streamError }}</span>
             </p>
-            <n-button type="primary" :loading="isSending" data-testid="send-message" @click="submitPrompt">Send</n-button>
+            <div class="chat-send-row">
+              <n-button type="primary" :loading="isSending" data-testid="send-message" @click="submitPrompt">Send</n-button>
+            </div>
           </div>
         </div>
       </n-card>

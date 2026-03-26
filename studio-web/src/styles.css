@@ -79,15 +79,16 @@ select {
   width: 100%;
   min-width: 0;
   min-height: 100vh;
-  padding: 28px;
+  padding: 0;
   overflow: hidden;
 }
 
 .shell-main-bar {
   position: relative;
   z-index: 1;
-  width: min(1440px, 100%);
-  margin: 0 auto 18px;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: 28px 28px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -96,8 +97,9 @@ select {
 .shell-content {
   position: relative;
   z-index: 1;
-  width: min(1440px, 100%);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
+  padding: 0 28px 28px;
 }
 
 .ambient {
@@ -444,6 +446,24 @@ select {
   border-radius: 24px;
 }
 
+.chat-composer-actions {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.chat-status-line {
+  margin: 0;
+  min-height: 24px;
+  padding-top: 4px;
+}
+
+.chat-send-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .composer :is(textarea, .n-input__textarea-el) {
   font-size: 15px;
   line-height: 1.7;
@@ -476,7 +496,7 @@ select {
 
 @media (max-width: 720px) {
   .shell-main {
-    padding: 16px;
+    padding: 0;
   }
 
   .brand-panel,
@@ -488,6 +508,14 @@ select {
   .shell-main-bar,
   .shell-content {
     width: 100%;
+  }
+
+  .shell-main-bar {
+    padding: 16px 16px 0;
+  }
+
+  .shell-content {
+    padding: 0 16px 16px;
   }
 
   .page-header,
