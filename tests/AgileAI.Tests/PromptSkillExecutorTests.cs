@@ -10,8 +10,10 @@ public class PromptSkillExecutorTests
     public async Task ExecuteAsync_ShouldInjectSkillPromptAndReturnResponse()
     {
         var mockChatClient = new Mock<IChatClient>();
+        ChatRequest? capturedRequest = null;
         mockChatClient
             .Setup(x => x.CompleteAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<ChatRequest, CancellationToken>((request, _) => capturedRequest = request)
             .ReturnsAsync(new ChatResponse
             {
                 IsSuccess = true,
@@ -40,14 +42,13 @@ public class PromptSkillExecutorTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("done", result.Output);
-        mockChatClient.Verify(x => x.CompleteAsync(
-            It.Is<ChatRequest>(r =>
-                r.Messages.Count >= 2 &&
-                r.Messages[0].Role == ChatRole.System &&
-                r.Messages[0].TextContent != null &&
-                r.Messages[0].TextContent.Contains("AgileAI local skill: weather") &&
-                r.Messages[1].Role == ChatRole.User),
-            It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(capturedRequest);
+        Assert.True(capturedRequest.Messages.Count >= 2);
+        Assert.Equal(ChatRole.System, capturedRequest.Messages[0].Role);
+        Assert.NotNull(capturedRequest.Messages[0].TextContent);
+        Assert.Contains("AgileAI local skill: weather", capturedRequest.Messages[0].TextContent);
+        Assert.Equal(ChatRole.User, capturedRequest.Messages[1].Role);
+        mockChatClient.Verify(x => x.CompleteAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

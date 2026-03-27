@@ -24,7 +24,7 @@ public static class FileSystemToolRegistryExtensions
             new MoveFileTool(pathGuard),
             new PatchFileTool(pathGuard),
             new DeleteFileTool(pathGuard, options),
-            new DeleteDirectoryTool(pathGuard, options)
+            new DeleteDirectoryTool(pathGuard)
         ]);
         return registry;
     }

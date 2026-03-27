@@ -16,7 +16,7 @@ public class DeleteDirectoryToolTests : IDisposable
 
         var options = new FileSystemToolOptions { RootPath = _tempRoot };
         _pathGuard = new FileSystemPathGuard(options);
-        _tool = new DeleteDirectoryTool(_pathGuard, options);
+        _tool = new DeleteDirectoryTool(_pathGuard);
     }
 
     public void Dispose()

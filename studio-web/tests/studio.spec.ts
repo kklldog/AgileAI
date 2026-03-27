@@ -130,5 +130,5 @@ test('real provider flow can create provider model agent and send a chat message
 
   await page.getByTestId('chat-input').locator('textarea').fill('Reply with exactly: Playwright real chat ok')
   await page.getByTestId('send-message').click()
-  await expect(page.getByText(/Playwright real chat ok/i)).toBeVisible({ timeout: 90000 })
+  await expect(page.getByTestId('message-assistant').filter({ hasText: /Playwright real chat ok/i }).last()).toBeVisible({ timeout: 90000 })
 })
