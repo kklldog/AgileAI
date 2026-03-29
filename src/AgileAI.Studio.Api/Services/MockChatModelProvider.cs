@@ -112,6 +112,12 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
             return ToolCallResponse("write_file", "{\"path\":\"tmp/studio-tool-smoke.txt\",\"content\":\"Studio workspace tool smoke test.\"}");
         }
 
+        if (lastUser.Contains("run local command", StringComparison.OrdinalIgnoreCase) ||
+            lastUser.Contains("command approval", StringComparison.OrdinalIgnoreCase))
+        {
+            return ToolCallResponse("run_local_command", "{\"command\":\"echo Playwright command ok\",\"shell\":\"auto\",\"timeoutMs\":120000}");
+        }
+
         return null;
     }
 
