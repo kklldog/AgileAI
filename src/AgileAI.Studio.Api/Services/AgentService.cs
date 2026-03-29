@@ -7,7 +7,7 @@ using System.Text.Json;
 
 namespace AgileAI.Studio.Api.Services;
 
-public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCatalogService, FileSystemToolRegistryFactory toolRegistryFactory)
+public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCatalogService, StudioToolRegistryFactory toolRegistryFactory)
 {
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken)
     {

@@ -27,6 +27,11 @@ builder.Services.AddScoped<ModelCatalogService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentExecutionService>();
+builder.Services.AddScoped<ToolApprovalService>();
+builder.Services.AddScoped<StudioToolExecutionGate>();
+builder.Services.AddScoped<ProcessExecutionService>();
+builder.Services.AddScoped<AgileAI.Studio.Api.Tools.RunLocalCommandTool>();
+builder.Services.AddScoped<StudioToolRegistryFactory>();
 builder.Services.AddSingleton<ProviderClientFactory>();
 builder.Services.AddFileSystemTools(new FileSystemToolOptions
 {
@@ -166,6 +171,18 @@ app.MapPost("/api/conversations/{id:guid}/stream", async (Guid id, SendMessageRe
 {
     await executionService.StreamMessageAsync(id, request.Content, httpContext.Response, cancellationToken);
     return Results.Empty;
+});
+
+app.MapGet("/api/conversations/{id:guid}/tool-approvals", async (Guid id, ToolApprovalService toolApprovalService, CancellationToken cancellationToken) =>
+{
+    var items = await toolApprovalService.GetToolApprovalsAsync(id, cancellationToken);
+    return Results.Ok(items);
+});
+
+app.MapPost("/api/tool-approvals/{id:guid}/resolve", async (Guid id, ResolveToolApprovalRequest request, ToolApprovalService toolApprovalService, CancellationToken cancellationToken) =>
+{
+    var result = await toolApprovalService.ResolveApprovalAsync(id, request.Approved, request.Comment, cancellationToken);
+    return Results.Ok(result);
 });
 
 app.Run();
