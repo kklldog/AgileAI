@@ -18,6 +18,7 @@ A lightweight .NET AI SDK for building chat applications with provider routing, 
   - non-streaming responses
   - streaming responses
   - tool calling / function calling
+  - approval-aware tool execution with host-managed pause/resume
 - Conversation management:
   - multi-turn `ChatSession`
   - `IAgentRuntime` with session continuation by `SessionId`
@@ -85,6 +86,7 @@ AgileAI.slnx
 
 - `ChatClient` for provider routing
 - `ChatSession` for multi-turn chat and tool loop handling
+- approval-capable tool execution gates and resumable chat turns via `SendTurnAsync(...)` / `ContinueAsync(...)`
 - `DefaultAgentRuntime` for runtime execution, session continuation, and skill selection
 - in-memory registries for tools and skills
 - `InMemorySessionStore` and `FileSessionStore`
@@ -116,6 +118,7 @@ AgileAI.Studio turns the SDK in this repo into a full local-first AI workspace.
 - design and validate model connections across OpenAI, Azure OpenAI, and OpenAI-compatible providers
 - create reusable agents with prompts, temperature, token limits, and pinned defaults
 - keep conversations persisted locally and chat with streaming responses in a polished desktop UI
+- execute unrestricted local commands through `run_local_command`, with a required user approval step for every execution
 - verify the product with Playwright screenshots and e2e coverage
 
 **Studio Stack**
@@ -149,8 +152,20 @@ The Vite app reads `VITE_API_BASE_URL` when provided; otherwise it defaults to `
 - add and validate models with a real minimal completion check
 - create, edit, pin, and delete agents
 - start conversations and stream replies in the chat workspace
+- approve or reject agent-requested local command execution directly in chat
 - run desktop e2e checks with Playwright
 - switch between light and dark UI themes inside the Studio shell
+
+### Approval-Gated Local Commands
+
+AgileAI now includes a reusable approval-aware tool execution model in core packages, and AgileAI.Studio uses it to power `run_local_command`.
+
+- the tool itself is unrestricted in capability
+- every execution requires explicit human approval before the command runs
+- the approval flow pauses the current tool loop and resumes it after approve/reject
+- Studio shows a chat-scoped approval card with the exact command preview, shell, and result status
+
+The reusable part lives in core abstractions and session orchestration. Studio adds the product-specific pieces: SQLite persistence, HTTP endpoints, SSE events, and the browser UI for approving or rejecting a pending command.
 
 ### Real OpenAI-Compatible Providers
 
@@ -203,6 +218,18 @@ Playwright-generated screenshots are stored under `studio-web/screenshots/` afte
 ```bash
 cd studio-web
 npm run build
+npm run test:e2e
+```
+
+The default Playwright suite uses the local Studio backend/frontend harness and covers the approval-modal command flow plus inline tool history rendering.
+
+The real provider browser scenario is intentionally opt-in because it depends on an external OpenAI-compatible endpoint. To enable it, set:
+
+```bash
+export PW_REAL_ENDPOINT="http://your-openai-compatible-endpoint"
+export PW_REAL_API_KEY="your-real-api-key"
+export PW_REAL_MODEL_KEY="your-model-name"
+cd studio-web
 npm run test:e2e
 ```
 
