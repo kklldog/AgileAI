@@ -14,6 +14,10 @@ public static class StudioDbSeeder
             "CREATE TABLE IF NOT EXISTS \"AgentToolSelections\" (\"AgentDefinitionId\" TEXT NOT NULL CONSTRAINT \"PK_AgentToolSelections\" PRIMARY KEY, \"ToolNamesJson\" TEXT NOT NULL)",
             cancellationToken);
 
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS \"ToolApprovalRequests\" (\"Id\" TEXT NOT NULL CONSTRAINT \"PK_ToolApprovalRequests\" PRIMARY KEY, \"ConversationId\" TEXT NOT NULL, \"AgentDefinitionId\" TEXT NOT NULL, \"AssistantMessageId\" TEXT NOT NULL, \"ApprovalRequestId\" TEXT NOT NULL, \"ToolCallId\" TEXT NOT NULL, \"ToolName\" TEXT NOT NULL, \"ArgumentsJson\" TEXT NOT NULL, \"AssistantToolCallContent\" TEXT NOT NULL, \"Status\" INTEGER NOT NULL, \"DecisionComment\" TEXT NULL, \"ResultContent\" TEXT NULL, \"ExitCode\" INTEGER NULL, \"StandardOutput\" TEXT NULL, \"StandardError\" TEXT NULL, \"RequestedAtUtc\" TEXT NOT NULL, \"DecidedAtUtc\" TEXT NULL, \"CompletedAtUtc\" TEXT NULL)",
+            cancellationToken);
+
         if (await dbContext.ProviderConnections.AnyAsync(cancellationToken))
         {
             return;

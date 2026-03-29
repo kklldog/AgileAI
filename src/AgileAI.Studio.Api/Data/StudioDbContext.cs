@@ -11,6 +11,7 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
     public DbSet<AgentToolSelection> AgentToolSelections => Set<AgentToolSelection>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> Messages => Set<ConversationMessage>();
+    public DbSet<ToolApprovalRequestEntity> ToolApprovalRequests => Set<ToolApprovalRequestEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +68,10 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
                 .WithOne(x => x.Conversation)
                 .HasForeignKey(x => x.ConversationId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.ToolApprovalRequests)
+                .WithOne(x => x.Conversation)
+                .HasForeignKey(x => x.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<ConversationMessage>(entity =>
@@ -81,6 +86,22 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.ToTable("AgentToolSelections");
             entity.HasKey(x => x.AgentDefinitionId);
             entity.Property(x => x.ToolNamesJson).HasMaxLength(8000);
+        });
+
+        modelBuilder.Entity<ToolApprovalRequestEntity>(entity =>
+        {
+            entity.ToTable("ToolApprovalRequests");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ApprovalRequestId).HasMaxLength(80);
+            entity.Property(x => x.ToolCallId).HasMaxLength(200);
+            entity.Property(x => x.ToolName).HasMaxLength(120);
+            entity.Property(x => x.ArgumentsJson).HasMaxLength(32000);
+            entity.Property(x => x.AssistantToolCallContent).HasMaxLength(32000);
+            entity.Property(x => x.DecisionComment).HasMaxLength(2000);
+            entity.Property(x => x.ResultContent).HasMaxLength(32000);
+            entity.Property(x => x.StandardOutput).HasMaxLength(32000);
+            entity.Property(x => x.StandardError).HasMaxLength(32000);
+            entity.HasIndex(x => x.ApprovalRequestId).IsUnique();
         });
     }
 }
