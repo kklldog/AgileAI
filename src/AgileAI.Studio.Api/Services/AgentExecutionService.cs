@@ -12,6 +12,7 @@ public class AgentExecutionService(
     AgentService agentService,
     ModelCatalogService modelCatalogService,
     ProviderClientFactory providerClientFactory,
+    IAgentRuntime agentRuntime,
     StudioToolRegistryFactory toolRegistryFactory,
     StudioToolExecutionGate toolExecutionGate,
     ToolApprovalService toolApprovalService)
@@ -31,6 +32,46 @@ public class AgentExecutionService(
         var trimmedContent = content.Trim();
 
         var userMessage = await conversationService.AddMessageAsync(conversation.Id, MessageRole.User, trimmedContent, false, null, null, null, cancellationToken);
+
+        if (agent.EnableSkills)
+        {
+            var runtimeResult = await agentRuntime.ExecuteAsync(new AgentRequest
+            {
+                SessionId = conversation.Id.ToString(),
+                ModelId = runtime.RuntimeModelId,
+                Input = trimmedContent,
+                EnableSkills = true,
+                Metadata = new Dictionary<string, object?>
+                {
+                    ["conversationId"] = conversation.Id.ToString(),
+                    ["agentId"] = agent.Id.ToString()
+                }
+            }, cancellationToken);
+
+            if (!runtimeResult.IsSuccess)
+            {
+                throw new InvalidOperationException(runtimeResult.ErrorMessage ?? "Skill runtime request failed.");
+            }
+
+            var runtimeAssistantText = runtimeResult.Output ?? string.Empty;
+            var assistantMessage = await conversationService.AddMessageAsync(
+                conversation.Id,
+                MessageRole.Assistant,
+                runtimeAssistantText,
+                false,
+                null,
+                null,
+                null,
+                cancellationToken);
+
+            await TryGenerateConversationTitleAsync(conversation, trimmedContent, runtimeAssistantText, cancellationToken);
+            await conversationService.TouchConversationAsync(conversation, cancellationToken);
+
+            return new ChatResultDto(
+                ConversationService.MapConversation(conversation),
+                ConversationService.MapMessage(userMessage),
+                ConversationService.MapMessage(assistantMessage));
+        }
 
         var session = CreateSession(conversation, agent, runtime.RuntimeModelId, chatClient);
         var turn = await session.SendTurnAsync(trimmedContent, new ChatOptions

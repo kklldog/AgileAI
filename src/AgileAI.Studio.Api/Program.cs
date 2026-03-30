@@ -1,5 +1,6 @@
 using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
+using AgileAI.DependencyInjection;
 using AgileAI.Extensions.FileSystem;
 using AgileAI.Extensions.FileSystem.DependencyInjection;
 using AgileAI.Studio.Api.Infrastructure;
@@ -23,6 +24,7 @@ var connectionString = builder.Configuration.GetConnectionString("Studio")
     ?? "Data Source=studio.db";
 
 builder.Services.AddDbContext<StudioDbContext>(options => options.UseSqlite(connectionString));
+builder.Services.AddAgileAI();
 builder.Services.AddScoped<ModelCatalogService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddScoped<ConversationService>();
@@ -38,6 +40,15 @@ builder.Services.AddFileSystemTools(new FileSystemToolOptions
     RootPath = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..")),
     MaxReadCharacters = 12000
 });
+
+var skillsRoot = Path.Combine(builder.Environment.ContentRootPath, "skills");
+if (Directory.Exists(skillsRoot))
+{
+    builder.Services.AddLocalSkills(options =>
+    {
+        options.RootDirectory = skillsRoot;
+    });
+}
 
 var app = builder.Build();
 
