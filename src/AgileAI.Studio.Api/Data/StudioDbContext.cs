@@ -9,6 +9,7 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
     public DbSet<StudioModel> Models => Set<StudioModel>();
     public DbSet<AgentDefinition> Agents => Set<AgentDefinition>();
     public DbSet<AgentToolSelection> AgentToolSelections => Set<AgentToolSelection>();
+    public DbSet<AgentSkillSelection> AgentSkillSelections => Set<AgentSkillSelection>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> Messages => Set<ConversationMessage>();
     public DbSet<ToolApprovalRequestEntity> ToolApprovalRequests => Set<ToolApprovalRequestEntity>();
@@ -86,6 +87,13 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.ToTable("AgentToolSelections");
             entity.HasKey(x => x.AgentDefinitionId);
             entity.Property(x => x.ToolNamesJson).HasMaxLength(8000);
+        });
+
+        modelBuilder.Entity<AgentSkillSelection>(entity =>
+        {
+            entity.ToTable("AgentSkillSelections");
+            entity.HasKey(x => x.AgentDefinitionId);
+            entity.Property(x => x.SkillNamesJson).HasMaxLength(8000);
         });
 
         modelBuilder.Entity<ToolApprovalRequestEntity>(entity =>

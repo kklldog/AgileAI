@@ -1,3 +1,4 @@
+using AgileAI.Abstractions;
 using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
@@ -7,7 +8,7 @@ using System.Text.Json;
 
 namespace AgileAI.Studio.Api.Services;
 
-public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCatalogService, StudioToolRegistryFactory toolRegistryFactory)
+public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCatalogService, StudioToolRegistryFactory toolRegistryFactory, ISkillRegistry skillRegistry)
 {
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken)
     {
@@ -56,6 +57,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         dbContext.Agents.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
         await SaveSelectedToolsAsync(entity.Id, request.SelectedToolNames, cancellationToken);
+        await SaveAllowedSkillsAsync(entity.Id, request.AllowedSkillNames, cancellationToken);
         return await MapAgentAsync(entity, cancellationToken);
     }
 
@@ -80,6 +82,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         ValidateAgent(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
         await SaveSelectedToolsAsync(entity.Id, request.SelectedToolNames, cancellationToken);
+        await SaveAllowedSkillsAsync(entity.Id, request.AllowedSkillNames, cancellationToken);
         return await MapAgentAsync(entity, cancellationToken);
     }
 
@@ -93,6 +96,11 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         if (selection != null)
         {
             dbContext.AgentToolSelections.Remove(selection);
+        }
+        var skillSelection = await dbContext.AgentSkillSelections.FirstOrDefaultAsync(x => x.AgentDefinitionId == id, cancellationToken);
+        if (skillSelection != null)
+        {
+            dbContext.AgentSkillSelections.Remove(skillSelection);
         }
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -113,10 +121,17 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         return NormalizeSelectedTools(ParseToolNames(selection?.ToolNamesJson));
     }
 
+    public async Task<IReadOnlyList<string>> GetAllowedSkillNamesAsync(Guid agentId, CancellationToken cancellationToken)
+    {
+        var selection = await dbContext.AgentSkillSelections.FirstOrDefaultAsync(x => x.AgentDefinitionId == agentId, cancellationToken);
+        return NormalizeAllowedSkills(ParseSkillNames(selection?.SkillNamesJson));
+    }
+
     private async Task<AgentDto> MapAgentAsync(AgentDefinition entity, CancellationToken cancellationToken)
     {
         var runtime = await modelCatalogService.GetRuntimeOptionsAsync(entity.StudioModelId, cancellationToken);
         var selectedToolNames = await GetSelectedToolNamesAsync(entity.Id, cancellationToken);
+        var allowedSkillNames = await GetAllowedSkillNamesAsync(entity.Id, cancellationToken);
         return new AgentDto(
             entity.Id,
             entity.StudioModelId,
@@ -128,6 +143,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
             entity.EnableSkills,
             entity.IsPinned,
             selectedToolNames,
+            allowedSkillNames,
             entity.StudioModel?.DisplayName ?? string.Empty,
             runtime.RuntimeModelId,
             entity.CreatedAtUtc,
@@ -145,6 +161,20 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         }
 
         entity.ToolNamesJson = JsonSerializer.Serialize(normalized);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task SaveAllowedSkillsAsync(Guid agentId, IReadOnlyList<string>? allowedSkillNames, CancellationToken cancellationToken)
+    {
+        var normalized = NormalizeAllowedSkills(allowedSkillNames);
+        var entity = await dbContext.AgentSkillSelections.FirstOrDefaultAsync(x => x.AgentDefinitionId == agentId, cancellationToken);
+        if (entity == null)
+        {
+            entity = new AgentSkillSelection { AgentDefinitionId = agentId };
+            dbContext.AgentSkillSelections.Add(entity);
+        }
+
+        entity.SkillNamesJson = JsonSerializer.Serialize(normalized);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -167,7 +197,35 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
             .ToList();
     }
 
+    private IReadOnlyList<string> NormalizeAllowedSkills(IReadOnlyList<string>? allowedSkillNames)
+    {
+        var available = skillRegistry.GetAllSkills()
+            .Select(x => x.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        if (allowedSkillNames == null || allowedSkillNames.Count == 0)
+        {
+            return available;
+        }
+
+        return allowedSkillNames
+            .Where(name => available.Contains(name, StringComparer.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
     private static IReadOnlyList<string> ParseToolNames(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+    }
+
+    private static IReadOnlyList<string> ParseSkillNames(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
