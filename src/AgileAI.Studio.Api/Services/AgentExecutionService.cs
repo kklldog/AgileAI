@@ -35,16 +35,19 @@ public class AgentExecutionService(
 
         if (agent.EnableSkills)
         {
+            var allowedSkillNames = await agentService.GetAllowedSkillNamesAsync(agent.Id, cancellationToken);
             var runtimeResult = await agentRuntime.ExecuteAsync(new AgentRequest
             {
                 SessionId = conversation.Id.ToString(),
                 ModelId = runtime.RuntimeModelId,
                 Input = trimmedContent,
                 EnableSkills = true,
+                AllowedSkills = allowedSkillNames,
                 Metadata = new Dictionary<string, object?>
                 {
                     ["conversationId"] = conversation.Id.ToString(),
-                    ["agentId"] = agent.Id.ToString()
+                    ["agentId"] = agent.Id.ToString(),
+                    ["studioModelId"] = agent.StudioModelId.ToString()
                 }
             }, cancellationToken);
 
@@ -68,7 +71,7 @@ public class AgentExecutionService(
             await conversationService.TouchConversationAsync(conversation, cancellationToken);
 
             return new ChatResultDto(
-                ConversationService.MapConversation(conversation),
+                await conversationService.MapConversationAsync(conversation, cancellationToken),
                 ConversationService.MapMessage(userMessage),
                 ConversationService.MapMessage(assistantMessage));
         }
@@ -114,7 +117,7 @@ public class AgentExecutionService(
         await conversationService.TouchConversationAsync(conversation, cancellationToken);
 
         return new ChatResultDto(
-            ConversationService.MapConversation(conversation),
+            await conversationService.MapConversationAsync(conversation, cancellationToken),
             ConversationService.MapMessage(userMessage),
             ConversationService.MapMessage(assistant));
     }
@@ -136,7 +139,7 @@ public class AgentExecutionService(
         {
             userMessage = ConversationService.MapMessage(userMessage),
             assistantMessage = ConversationService.MapMessage(assistant),
-            conversation = ConversationService.MapConversation(conversation)
+            conversation = await conversationService.MapConversationAsync(conversation, cancellationToken)
         }, cancellationToken);
 
         try

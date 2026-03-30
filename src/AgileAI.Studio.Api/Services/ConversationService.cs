@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AgileAI.Studio.Api.Services;
 
-public class ConversationService(StudioDbContext dbContext)
+public class ConversationService(StudioDbContext dbContext, SkillService skillService)
 {
     public async Task<IReadOnlyList<ConversationDto>> GetConversationsAsync(CancellationToken cancellationToken)
     {
@@ -14,10 +14,14 @@ public class ConversationService(StudioDbContext dbContext)
             .Include(x => x.Messages)
             .ToListAsync(cancellationToken);
 
-        return items
-            .OrderByDescending(x => x.UpdatedAtUtc.UtcDateTime)
-            .Select(MapConversation)
-            .ToList();
+        var ordered = items.OrderByDescending(x => x.UpdatedAtUtc.UtcDateTime).ToList();
+        var mapped = new List<ConversationDto>(ordered.Count);
+        foreach (var item in ordered)
+        {
+            mapped.Add(await MapConversationAsync(item, cancellationToken));
+        }
+
+        return mapped;
     }
 
     public async Task<ConversationDto> CreateConversationAsync(ConversationCreateRequest request, CancellationToken cancellationToken)
@@ -38,7 +42,7 @@ public class ConversationService(StudioDbContext dbContext)
 
         dbContext.Conversations.Add(conversation);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return MapConversation(conversation);
+        return await MapConversationAsync(conversation, cancellationToken);
     }
 
     public async Task<IReadOnlyList<MessageDto>> GetMessagesAsync(Guid conversationId, CancellationToken cancellationToken)
@@ -73,15 +77,19 @@ public class ConversationService(StudioDbContext dbContext)
         var agentCount = await dbContext.Agents.CountAsync(cancellationToken);
         var conversationCount = await dbContext.Conversations.CountAsync(cancellationToken);
 
+        var recentConversationDtos = new List<ConversationDto>();
+        foreach (var conversation in recentConversations
+                     .OrderByDescending(x => x.UpdatedAtUtc.UtcDateTime)
+                     .Take(4))
+        {
+            recentConversationDtos.Add(await MapConversationAsync(conversation, cancellationToken));
+        }
+
         return new StudioOverviewDto(
             modelCount,
             agentCount,
             conversationCount,
-            recentConversations
-                .OrderByDescending(x => x.UpdatedAtUtc.UtcDateTime)
-                .Take(4)
-                .Select(MapConversation)
-                .ToList());
+            recentConversationDtos);
     }
 
     public async Task TouchConversationAsync(Conversation conversation, CancellationToken cancellationToken)
@@ -133,7 +141,7 @@ public class ConversationService(StudioDbContext dbContext)
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public static ConversationDto MapConversation(Conversation entity)
+    public async Task<ConversationDto> MapConversationAsync(Conversation entity, CancellationToken cancellationToken)
         => new(
             entity.Id,
             entity.AgentDefinitionId,
@@ -141,7 +149,11 @@ public class ConversationService(StudioDbContext dbContext)
             entity.Title,
             entity.CreatedAtUtc,
             entity.UpdatedAtUtc,
-            entity.Messages.Count);
+            entity.Messages.Count,
+            await skillService.GetConversationSkillStateAsync(entity.Id, cancellationToken));
+
+    public ConversationDto MapConversation(Conversation entity)
+        => MapConversationAsync(entity, CancellationToken.None).GetAwaiter().GetResult();
 
     public static MessageDto MapMessage(ConversationMessage entity)
         => new(

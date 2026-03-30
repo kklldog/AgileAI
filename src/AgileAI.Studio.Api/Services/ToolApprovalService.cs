@@ -163,7 +163,7 @@ public sealed class ToolApprovalService(
         return new ToolApprovalResolutionResultDto(
             MapApproval(approval),
             ConversationService.MapMessage(assistantMessage),
-            ConversationService.MapConversation(conversation),
+            await conversationService.MapConversationAsync(conversation, cancellationToken),
             pendingApprovalDto);
     }
 
