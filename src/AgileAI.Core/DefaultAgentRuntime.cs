@@ -84,9 +84,14 @@ public class DefaultAgentRuntime : IAgentRuntime
 
     private async Task<ISkill?> ResolveSkillAsync(AgentRequest request, ConversationState? sessionState, CancellationToken cancellationToken)
     {
+        var allowed = request.AllowedSkills is { Count: > 0 }
+            ? new HashSet<string>(request.AllowedSkills, StringComparer.OrdinalIgnoreCase)
+            : null;
+
         if (!string.IsNullOrWhiteSpace(request.PreferredSkill) &&
             _skillRegistry.TryGetSkill(request.PreferredSkill, out var preferred) &&
-            preferred != null)
+            preferred != null &&
+            (allowed == null || allowed.Contains(preferred.Name)))
         {
             _logger?.LogInformation("Resolved skill from PreferredSkill: {SkillName}", preferred.Name);
             return preferred;
@@ -112,7 +117,8 @@ public class DefaultAgentRuntime : IAgentRuntime
             if (continuationDecision.ContinueActiveSkill &&
                 !string.IsNullOrWhiteSpace(continuationDecision.SkillName) &&
                 _skillRegistry.TryGetSkill(continuationDecision.SkillName, out var continuedSkill) &&
-                continuedSkill != null)
+                continuedSkill != null &&
+                (allowed == null || allowed.Contains(continuedSkill.Name)))
             {
                 _logger?.LogInformation("Resolved skill from continuation policy: {SkillName}", continuedSkill.Name);
                 return continuedSkill;
@@ -183,7 +189,8 @@ public class DefaultAgentRuntime : IAgentRuntime
             ModelId = modelId,
             History = request.History,
             SkillRootDirectory = skill.Manifest?.RootDirectory,
-            SkillMarkdownPath = skill.Manifest?.SkillMarkdownPath
+            SkillMarkdownPath = skill.Manifest?.SkillMarkdownPath,
+            Items = request.Metadata?.ToDictionary(x => x.Key, x => x.Value) ?? new Dictionary<string, object?>()
         };
     }
 

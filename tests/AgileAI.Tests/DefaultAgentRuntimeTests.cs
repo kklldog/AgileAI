@@ -292,4 +292,60 @@ public class DefaultAgentRuntimeTests
         Assert.NotNull(state);
         Assert.Equal("calendar", state!.ActiveSkill);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_ShouldNotContinueDisallowedActiveSkill()
+    {
+        var mockChatClient = new Mock<IChatClient>();
+        var mockSkillRegistry = new Mock<ISkillRegistry>();
+        var mockSkill = new Mock<ISkill>();
+        var sessionStore = new InMemorySessionStore();
+        var continuationPolicy = new DefaultSkillContinuationPolicy();
+
+        await sessionStore.SaveAsync(new ConversationState
+        {
+            SessionId = "session-allowlist-1",
+            ActiveSkill = "weather",
+            History = [ChatMessage.User("Earlier")],
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+
+        mockSkill.SetupGet(x => x.Name).Returns("weather");
+        mockSkill.SetupGet(x => x.Description).Returns("Weather helper");
+        mockSkill.SetupGet(x => x.Manifest).Returns(new SkillManifest { Name = "weather" });
+
+        mockSkillRegistry.Setup(x => x.GetAllSkills()).Returns([mockSkill.Object]);
+        var weatherSkill = mockSkill.Object;
+        mockSkillRegistry.Setup(x => x.TryGetSkill("weather", out weatherSkill)).Returns(true);
+
+        mockChatClient
+            .Setup(c => c.CompleteAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse
+            {
+                IsSuccess = true,
+                Message = ChatMessage.Assistant("plain response")
+            });
+
+        var runtime = new DefaultAgentRuntime(
+            mockChatClient.Object,
+            mockSkillRegistry.Object,
+            sessionStore: sessionStore,
+            skillContinuationPolicy: continuationPolicy);
+
+        var result = await runtime.ExecuteAsync(new AgentRequest
+        {
+            Input = "continue",
+            ModelId = "test-model",
+            SessionId = "session-allowlist-1",
+            EnableSkills = true,
+            AllowedSkills = ["repo-guide"]
+        });
+
+        Assert.True(result.IsSuccess);
+        mockSkill.Verify(x => x.ExecuteAsync(It.IsAny<SkillExecutionContext>(), It.IsAny<CancellationToken>()), Times.Never);
+        mockChatClient.Verify(c => c.CompleteAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()), Times.Once);
+        var state = await sessionStore.GetAsync("session-allowlist-1");
+        Assert.NotNull(state);
+        Assert.Null(state!.ActiveSkill);
+    }
 }
