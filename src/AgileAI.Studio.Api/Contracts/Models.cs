@@ -33,7 +33,8 @@ public record AgentRequestDto(
     int MaxTokens,
     bool EnableSkills,
     bool IsPinned,
-    IReadOnlyList<string>? SelectedToolNames);
+    IReadOnlyList<string>? SelectedToolNames,
+    IReadOnlyList<string>? AllowedSkillNames);
 
 public record ToolOptionDto(
     string Name,
@@ -84,10 +85,23 @@ public record AgentDto(
     bool EnableSkills,
     bool IsPinned,
     IReadOnlyList<string> SelectedToolNames,
+    IReadOnlyList<string> AllowedSkillNames,
     string ModelDisplayName,
     string RuntimeModelId,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
+
+public record SkillDto(
+    string Name,
+    string? Description,
+    string? Version,
+    string? EntryMode,
+    IReadOnlyList<string> Triggers,
+    IReadOnlyList<string> Files);
+
+public record ConversationSkillStateDto(
+    string Name,
+    string? Description);
 
 public record ConversationDto(
     Guid Id,
@@ -96,7 +110,8 @@ public record ConversationDto(
     string Title,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc,
-    int MessageCount);
+    int MessageCount,
+    ConversationSkillStateDto? ActiveSkill);
 
 public record MessageDto(
     Guid Id,
