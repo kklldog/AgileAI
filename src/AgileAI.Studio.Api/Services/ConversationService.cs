@@ -2,11 +2,14 @@ using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace AgileAI.Studio.Api.Services;
 
 public class ConversationService(StudioDbContext dbContext, SkillService skillService)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<IReadOnlyList<ConversationDto>> GetConversationsAsync(CancellationToken cancellationToken)
     {
         var items = await dbContext.Conversations
@@ -111,7 +114,7 @@ public class ConversationService(StudioDbContext dbContext, SkillService skillSe
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<ConversationMessage> AddMessageAsync(Guid conversationId, MessageRole role, string content, bool isStreaming, string? finishReason, int? inputTokens, int? outputTokens, CancellationToken cancellationToken)
+    public async Task<ConversationMessage> AddMessageAsync(Guid conversationId, MessageRole role, string content, bool isStreaming, string? finishReason, int? inputTokens, int? outputTokens, string? appliedSkillName, IReadOnlyList<string>? appliedToolNames, CancellationToken cancellationToken)
     {
         var message = new ConversationMessage
         {
@@ -123,6 +126,8 @@ public class ConversationService(StudioDbContext dbContext, SkillService skillSe
             FinishReason = finishReason,
             InputTokens = inputTokens,
             OutputTokens = outputTokens,
+            AppliedSkillName = appliedSkillName,
+            AppliedToolNamesJson = SerializeAppliedToolNames(appliedToolNames),
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -131,13 +136,15 @@ public class ConversationService(StudioDbContext dbContext, SkillService skillSe
         return message;
     }
 
-    public async Task UpdateMessageAsync(ConversationMessage message, string content, bool isStreaming, string? finishReason, int? inputTokens, int? outputTokens, CancellationToken cancellationToken)
+    public async Task UpdateMessageAsync(ConversationMessage message, string content, bool isStreaming, string? finishReason, int? inputTokens, int? outputTokens, string? appliedSkillName, IReadOnlyList<string>? appliedToolNames, CancellationToken cancellationToken)
     {
         message.Content = content;
         message.IsStreaming = isStreaming;
         message.FinishReason = finishReason;
         message.InputTokens = inputTokens;
         message.OutputTokens = outputTokens;
+        message.AppliedSkillName = appliedSkillName;
+        message.AppliedToolNamesJson = SerializeAppliedToolNames(appliedToolNames);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
@@ -165,5 +172,27 @@ public class ConversationService(StudioDbContext dbContext, SkillService skillSe
             entity.FinishReason,
             entity.InputTokens,
             entity.OutputTokens,
+            entity.AppliedSkillName,
+            DeserializeAppliedToolNames(entity.AppliedToolNamesJson),
             entity.CreatedAtUtc);
+
+    private static string? SerializeAppliedToolNames(IReadOnlyList<string>? appliedToolNames)
+    {
+        if (appliedToolNames == null || appliedToolNames.Count == 0)
+        {
+            return null;
+        }
+
+        return JsonSerializer.Serialize(appliedToolNames.Where(name => string.IsNullOrWhiteSpace(name) == false).Distinct(StringComparer.OrdinalIgnoreCase), JsonOptions);
+    }
+
+    private static IReadOnlyList<string>? DeserializeAppliedToolNames(string? appliedToolNamesJson)
+    {
+        if (string.IsNullOrWhiteSpace(appliedToolNamesJson))
+        {
+            return null;
+        }
+
+        return JsonSerializer.Deserialize<List<string>>(appliedToolNamesJson, JsonOptions);
+    }
 }

@@ -80,6 +80,8 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.ToTable("Messages");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Content).HasMaxLength(32000);
+            entity.Property(x => x.AppliedSkillName).HasMaxLength(160);
+            entity.Property(x => x.AppliedToolNamesJson).HasMaxLength(4000);
         });
 
         modelBuilder.Entity<AgentToolSelection>(entity =>

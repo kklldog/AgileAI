@@ -268,12 +268,14 @@ export const useStudioStore = defineStore('studio', {
               outputTokens,
             })
           },
-          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens }) => {
+          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens, appliedSkillName, appliedToolNames }) => {
             patchAssistantMessage({
               content,
               finishReason: finishReason ?? null,
               inputTokens,
               outputTokens,
+              appliedSkillName: appliedSkillName ?? null,
+              appliedToolNames: appliedToolNames ?? null,
               isStreaming: false,
             })
           },
@@ -299,7 +301,9 @@ export const useStudioStore = defineStore('studio', {
         })
 
         const refreshedApprovals = await getConversationToolApprovals(conversationId)
+        const refreshedMessages = await getMessages(conversationId)
         this.toolApprovalsByConversation[conversationId] = refreshedApprovals
+        this.messagesByConversation[conversationId] = refreshedMessages
         this.conversations = await getConversations()
         await this.refreshOverview()
         return null
@@ -423,7 +427,7 @@ export const useStudioStore = defineStore('studio', {
             }
             this.messagesByConversation[conversationId] = list
           },
-          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens }) => {
+          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens, appliedSkillName, appliedToolNames }) => {
             const list = [...(this.messagesByConversation[conversationId] ?? [])]
             const last = list.at(-1)
             if (!last) {
@@ -436,6 +440,8 @@ export const useStudioStore = defineStore('studio', {
               finishReason: finishReason ?? last.finishReason,
               inputTokens: inputTokens ?? last.inputTokens,
               outputTokens: outputTokens ?? last.outputTokens,
+              appliedSkillName: appliedSkillName ?? last.appliedSkillName ?? null,
+              appliedToolNames: appliedToolNames ?? last.appliedToolNames ?? null,
               isStreaming: false,
             }
             this.messagesByConversation[conversationId] = list

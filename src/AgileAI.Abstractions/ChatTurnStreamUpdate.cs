@@ -11,10 +11,12 @@ public sealed record ChatTurnModelResponse(ChatResponse Response) : ChatTurnStre
 public sealed record ChatTurnPendingApproval(
     ChatResponse Response,
     ToolApprovalRequest PendingApprovalRequest,
-    IReadOnlyList<ToolResult>? ToolResults = null) : ChatTurnStreamUpdate;
+    IReadOnlyList<ToolResult>? ToolResults = null,
+    IReadOnlyList<string>? ToolNames = null) : ChatTurnStreamUpdate;
 
 public sealed record ChatTurnCompleted(
     ChatResponse Response,
-    IReadOnlyList<ToolResult>? ToolResults = null) : ChatTurnStreamUpdate;
+    IReadOnlyList<ToolResult>? ToolResults = null,
+    IReadOnlyList<string>? ToolNames = null) : ChatTurnStreamUpdate;
 
 public sealed record ChatTurnError(string ErrorMessage) : ChatTurnStreamUpdate;

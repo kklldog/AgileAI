@@ -11,5 +11,7 @@ public class ConversationMessage
     public string? FinishReason { get; set; }
     public int? InputTokens { get; set; }
     public int? OutputTokens { get; set; }
+    public string? AppliedSkillName { get; set; }
+    public string? AppliedToolNamesJson { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
 }

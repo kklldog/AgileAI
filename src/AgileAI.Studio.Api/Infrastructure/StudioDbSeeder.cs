@@ -22,6 +22,14 @@ public static class StudioDbSeeder
             "CREATE TABLE IF NOT EXISTS \"ToolApprovalRequests\" (\"Id\" TEXT NOT NULL CONSTRAINT \"PK_ToolApprovalRequests\" PRIMARY KEY, \"ConversationId\" TEXT NOT NULL, \"AgentDefinitionId\" TEXT NOT NULL, \"AssistantMessageId\" TEXT NOT NULL, \"ApprovalRequestId\" TEXT NOT NULL, \"ToolCallId\" TEXT NOT NULL, \"ToolName\" TEXT NOT NULL, \"ArgumentsJson\" TEXT NOT NULL, \"AssistantToolCallContent\" TEXT NOT NULL, \"Status\" INTEGER NOT NULL, \"DecisionComment\" TEXT NULL, \"ResultContent\" TEXT NULL, \"ExitCode\" INTEGER NULL, \"StandardOutput\" TEXT NULL, \"StandardError\" TEXT NULL, \"RequestedAtUtc\" TEXT NOT NULL, \"DecidedAtUtc\" TEXT NULL, \"CompletedAtUtc\" TEXT NULL)",
             cancellationToken);
 
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Messages\" ADD COLUMN \"AppliedSkillName\" TEXT NULL",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Messages\" ADD COLUMN \"AppliedToolNamesJson\" TEXT NULL",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
         if (await dbContext.ProviderConnections.AnyAsync(cancellationToken))
         {
             return;
@@ -85,6 +93,8 @@ public static class StudioDbSeeder
             Role = MessageRole.Assistant,
             Content = "Welcome to AgileAI.Studio. Add a real API key in Models, then create your own agents and start chatting.",
             IsStreaming = false,
+            AppliedSkillName = null,
+            AppliedToolNamesJson = null,
             CreatedAtUtc = now
         };
 

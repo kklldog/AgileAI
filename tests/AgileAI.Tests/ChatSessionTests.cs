@@ -339,6 +339,7 @@ public class ChatSessionTests
         var pending = Assert.Single(updates.OfType<ChatTurnPendingApproval>());
         Assert.Equal("approval-tool", pending.PendingApprovalRequest.ToolName);
         Assert.Equal("Need approval.", pending.Response.Message?.TextContent);
+        Assert.Equal(["approval-tool"], pending.ToolNames);
         Assert.Equal(0, tool.ExecutionCount);
         Assert.Equal(ChatRole.Assistant, session.History.Last().Role);
     }

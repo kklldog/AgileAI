@@ -10,6 +10,14 @@ triggers:
   - architecture
   - where is
   - find implementation
+  - 介绍这个仓库
+  - 介绍仓库
+  - 仓库
+  - 代码仓库
+  - 代码库
+  - 架构
+  - 仓库结构
+  - 这个仓库
 files:
   - examples.md
   - checklist.md

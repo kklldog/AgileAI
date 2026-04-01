@@ -7,6 +7,8 @@
           <div class="chat-heading-meta">
             <div class="chat-heading-copy">
               <h3 class="chat-heading-title">{{ activeAgent?.name ?? activeConversation?.agentName ?? 'Chat' }}</h3>
+            </div>
+            <div class="chat-heading-side">
               <div class="chat-skill-state-row">
                 <n-tag v-if="activeConversation?.activeSkill" size="small" type="success" bordered data-testid="active-skill-tag">
                   Active skill: {{ activeConversation.activeSkill.name }}
@@ -16,7 +18,6 @@
                 </n-tag>
               </div>
             </div>
-            <n-tag v-if="activeModelSummary" type="info" bordered>{{ activeModelSummary }}</n-tag>
           </div>
         </template>
 
@@ -25,6 +26,14 @@
             <span class="message-role">{{ item.role === 'User' ? 'You' : item.role === 'Assistant' ? activeConversation?.agentName ?? 'Assistant' : item.role }}</span>
             <div v-if="item.role === 'Assistant'">
               <div class="message-markdown" v-html="renderAssistantMessage(item.content)"></div>
+              <div v-if="!item.isStreaming && (item.appliedSkillName || item.appliedToolNames?.length)" class="message-usage-summary">
+                <span v-if="item.appliedSkillName" class="message-usage-chip" :data-testid="`message-skill-${item.id}`">
+                  Skill used: {{ item.appliedSkillName }}
+                </span>
+                <span v-if="item.appliedToolNames?.length" class="message-usage-chip" :data-testid="`message-tools-${item.id}`">
+                  Tools used: {{ item.appliedToolNames.join(', ') }}
+                </span>
+              </div>
               <div v-if="getToolHistoryForMessage(item.id).length" class="message-tool-history">
                 <n-collapse accordion>
                   <n-collapse-item
@@ -80,6 +89,7 @@
               <span v-if="store.isStreaming">Streaming response in progress...</span>
               <span v-if="store.streamError">{{ store.streamError }}</span>
             </p>
+            <p v-if="activeModelSummary" class="chat-model-line" data-testid="chat-model-line">Model: {{ activeModelSummary }}</p>
             <div class="chat-send-row">
               <n-button class="chat-send-button" type="primary" :loading="isSending" :disabled="Boolean(pendingApproval)" data-testid="send-message" @click="submitPrompt">Send</n-button>
             </div>
@@ -478,6 +488,22 @@ function formatConversationMeta(conversation: { createdAtUtc: string; messageCou
   display: flex;
   gap: 8px;
   margin-top: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.chat-heading-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.chat-heading-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
 .approval-header {
@@ -586,6 +612,31 @@ function formatConversationMeta(conversation: { createdAtUtc: string; messageCou
 .message-markdown {
   margin-top: 6px;
   line-height: 1.7;
+}
+
+.message-usage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.message-usage-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-color-2);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chat-model-line {
+  margin: 0;
+  color: var(--text-color-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .message-markdown :deep(p) {

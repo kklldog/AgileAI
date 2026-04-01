@@ -97,7 +97,8 @@ public class ChatSession : IChatSession
         var finalOptions = BuildEffectiveOptions(options);
 
         ChatResponse? lastResponse = null;
-        List<ToolResult>? lastToolResults = null;
+            List<ToolResult>? lastToolResults = null;
+            List<string>? lastToolNames = null;
         var iteration = 0;
 
         while (iteration < _maxToolLoopIterations)
@@ -223,6 +224,7 @@ public class ChatSession : IChatSession
     {
         var finalOptions = BuildEffectiveOptions(options);
         List<ToolResult>? lastToolResults = null;
+        List<string>? lastToolNames = null;
         var iteration = 0;
 
         while (iteration < _maxToolLoopIterations)
@@ -289,15 +291,17 @@ public class ChatSession : IChatSession
             if (toolCalls == null || toolCalls.Count == 0 || _toolRegistry == null)
             {
                 _logger?.LogInformation("ChatSession streaming completed without tool calls");
-                yield return new ChatTurnCompleted(response, lastToolResults);
+                yield return new ChatTurnCompleted(response, lastToolResults, lastToolNames);
                 yield break;
             }
 
             _logger?.LogInformation("ChatSession streaming executing {ToolCount} tool calls", toolCalls.Count);
             var toolResults = new List<ToolResult>();
+            var toolNames = new List<string>();
             foreach (var toolCall in toolCalls)
             {
                 _logger?.LogInformation("Executing tool: {ToolName}", toolCall.Name);
+                toolNames.Add(toolCall.Name);
                 if (_toolRegistry.TryGetTool(toolCall.Name, out var tool) && tool != null)
                 {
                     var context = new ToolExecutionContext
@@ -314,7 +318,8 @@ public class ChatSession : IChatSession
                     if (execution.PendingApprovalRequest != null)
                     {
                         lastToolResults = toolResults;
-                        yield return new ChatTurnPendingApproval(response, execution.PendingApprovalRequest, lastToolResults);
+                        lastToolNames = toolNames;
+                        yield return new ChatTurnPendingApproval(response, execution.PendingApprovalRequest, lastToolResults, lastToolNames);
                         yield break;
                     }
                 }
@@ -332,6 +337,7 @@ public class ChatSession : IChatSession
             }
 
             lastToolResults = toolResults;
+            lastToolNames = toolNames;
 
             foreach (var result in toolResults)
             {
@@ -350,7 +356,7 @@ public class ChatSession : IChatSession
         {
             IsSuccess = false,
             ErrorMessage = "Maximum tool loop iterations reached"
-        }, lastToolResults);
+        }, lastToolResults, lastToolNames);
     }
 
     private async IAsyncEnumerable<ChatTurnStreamUpdate> StreamModelPassAsync(

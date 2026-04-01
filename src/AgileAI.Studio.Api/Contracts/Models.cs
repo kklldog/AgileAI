@@ -122,6 +122,8 @@ public record MessageDto(
     string? FinishReason,
     int? InputTokens,
     int? OutputTokens,
+    string? AppliedSkillName,
+    IReadOnlyList<string>? AppliedToolNames,
     DateTimeOffset CreatedAtUtc);
 
 public record ChatResultDto(

@@ -91,6 +91,8 @@ export interface MessageItem {
   finishReason?: string | null
   inputTokens?: number | null
   outputTokens?: number | null
+  appliedSkillName?: string | null
+  appliedToolNames?: string[] | null
   createdAtUtc: string
 }
 

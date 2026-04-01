@@ -5,6 +5,7 @@ using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AgileAI.Studio.Api.Services;
 
@@ -16,9 +17,11 @@ public sealed class ToolApprovalService(
     ProviderClientFactory providerClientFactory,
     StudioToolRegistryFactory toolRegistryFactory)
 {
+    private const int StudioMaxToolLoopIterations = 12;
     private static readonly JsonSerializerOptions SseJsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public async Task<ToolApprovalDto> CreatePendingApprovalAsync(
@@ -76,6 +79,7 @@ public sealed class ToolApprovalService(
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
         var chatSession = new ChatSessionBuilder(chatClient, runtime.RuntimeModelId)
             .WithToolRegistry(toolRegistry)
+            .WithMaxToolLoopIterations(StudioMaxToolLoopIterations)
             .WithToolExecutionGate(new StudioToolExecutionGate())
             .WithConversationId(conversation.Id.ToString())
             .WithHistory(BuildResumeHistory(conversation, assistantMessage.Id, approval))
@@ -161,6 +165,8 @@ public sealed class ToolApprovalService(
             resumedTurn.Response.FinishReason,
             resumedTurn.Response.Usage?.PromptTokens,
             resumedTurn.Response.Usage?.CompletionTokens,
+            assistantMessage.AppliedSkillName,
+            null,
             cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -196,6 +202,7 @@ public sealed class ToolApprovalService(
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
         var chatSession = new ChatSessionBuilder(chatClient, runtime.RuntimeModelId)
             .WithToolRegistry(toolRegistry)
+            .WithMaxToolLoopIterations(StudioMaxToolLoopIterations)
             .WithToolExecutionGate(new StudioToolExecutionGate())
             .WithConversationId(conversation.Id.ToString())
             .WithHistory(BuildResumeHistory(conversation, assistantMessage.Id, approval))
@@ -282,13 +289,23 @@ public sealed class ToolApprovalService(
                         null,
                         null,
                         null,
+                        assistantMessage.AppliedSkillName,
+                        pendingApproval.ToolNames,
                         cancellationToken);
 
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await conversationService.TouchConversationAsync(conversation, cancellationToken);
 
                     await WriteSseAsync(response, "approval-required", pendingApprovalDto, cancellationToken);
-                    await WriteSseAsync(response, "final-message", new { content = waitingContent, finishReason = (string?)null, inputTokens = (int?)null, outputTokens = (int?)null }, cancellationToken);
+                    await WriteSseAsync(response, "final-message", new
+                    {
+                        content = waitingContent,
+                        finishReason = (string?)null,
+                        inputTokens = (int?)null,
+                        outputTokens = (int?)null,
+                        appliedSkillName = assistantMessage.AppliedSkillName,
+                        appliedToolNames = pendingApproval.ToolNames
+                    }, cancellationToken);
                     await WriteSseAsync(response, "completed", new { finishReason = "approval_required" }, cancellationToken);
                     return;
                 }
@@ -310,6 +327,8 @@ public sealed class ToolApprovalService(
                         completed.Response.FinishReason,
                         completed.Response.Usage?.PromptTokens,
                         completed.Response.Usage?.CompletionTokens,
+                        assistantMessage.AppliedSkillName,
+                        completed.ToolNames,
                         cancellationToken);
 
                     await dbContext.SaveChangesAsync(cancellationToken);
@@ -320,7 +339,9 @@ public sealed class ToolApprovalService(
                         content = finalContent,
                         finishReason = completed.Response.FinishReason,
                         inputTokens = completed.Response.Usage?.PromptTokens,
-                        outputTokens = completed.Response.Usage?.CompletionTokens
+                        outputTokens = completed.Response.Usage?.CompletionTokens,
+                        appliedSkillName = assistantMessage.AppliedSkillName,
+                        appliedToolNames = completed.ToolNames
                     }, cancellationToken);
                     await WriteSseAsync(response, "completed", new { finishReason = completed.Response.FinishReason }, cancellationToken);
                     return;
@@ -401,4 +422,5 @@ public sealed class ToolApprovalService(
         await response.WriteAsync($"data: {json}\n\n", cancellationToken);
         await response.Body.FlushAsync(cancellationToken);
     }
+
 }

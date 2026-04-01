@@ -295,7 +295,7 @@ export interface StreamHandlers {
   onDelta?: (delta: string) => void
   onUsage?: (payload: { inputTokens?: number | null; outputTokens?: number | null }) => void
   onCompleted?: (payload: { finishReason?: string | null }) => void
-  onFinalMessage?: (payload: { content: string; finishReason?: string | null; inputTokens?: number | null; outputTokens?: number | null }) => void
+  onFinalMessage?: (payload: { content: string; finishReason?: string | null; inputTokens?: number | null; outputTokens?: number | null; appliedSkillName?: string | null; appliedToolNames?: string[] | null }) => void
   onApprovalRequired?: (payload: ToolApprovalItem) => void
   onError?: (message: string) => void
 }
