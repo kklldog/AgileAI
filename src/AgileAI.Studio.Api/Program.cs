@@ -1,6 +1,7 @@
 using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Abstractions;
+using AgileAI.Core;
 using AgileAI.DependencyInjection;
 using AgileAI.Extensions.FileSystem;
 using AgileAI.Extensions.FileSystem.DependencyInjection;
@@ -34,9 +35,9 @@ builder.Services.AddScoped<AgentExecutionService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<ToolApprovalService>();
 builder.Services.AddScoped<StudioToolExecutionGate>();
-builder.Services.AddScoped<ProcessExecutionService>();
-builder.Services.AddScoped<AgileAI.Studio.Api.Tools.RunLocalCommandTool>();
-builder.Services.AddHttpClient<AgileAI.Studio.Api.Tools.WebFetchTool>();
+builder.Services.AddScoped<AgileAI.Core.ProcessExecutionService>();
+builder.Services.AddScoped<RunLocalCommandTool>();
+builder.Services.AddHttpClient<WebFetchTool>();
 builder.Services.AddScoped<StudioToolRegistryFactory>();
 builder.Services.AddSingleton<ProviderClientFactory>();
 builder.Services.AddFileSystemTools(new FileSystemToolOptions

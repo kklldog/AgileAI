@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using AgileAI.Abstractions;
-using AgileAI.Studio.Api.Tools;
+using AgileAI.Core;
 
 namespace AgileAI.Tests;
 

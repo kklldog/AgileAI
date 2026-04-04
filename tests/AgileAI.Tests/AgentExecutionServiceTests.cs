@@ -4,7 +4,6 @@ using AgileAI.Extensions.FileSystem;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using AgileAI.Studio.Api.Services;
-using AgileAI.Studio.Api.Tools;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -255,7 +254,7 @@ public class AgentExecutionServiceTests
                 new DeleteDirectoryTool(pathGuard));
             var studioRegistryFactory = new StudioToolRegistryFactory(
                 fileSystemFactory,
-                new RunLocalCommandTool(new ProcessExecutionService()),
+                new RunLocalCommandTool(new AgileAI.Core.ProcessExecutionService()),
                 new WebFetchTool(webFetchHttpClient));
             var agentService = new AgentService(dbContext, modelCatalogService, studioRegistryFactory, skillRegistry);
             var providerClientFactory = new ProviderClientFactory(NullLoggerFactory.Instance);

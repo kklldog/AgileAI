@@ -1,4 +1,4 @@
-using AgileAI.Studio.Api.Services;
+using AgileAI.Core;
 
 namespace AgileAI.Tests;
 

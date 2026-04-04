@@ -2,7 +2,6 @@ using AgileAI.Abstractions;
 using AgileAI.Core;
 using AgileAI.Extensions.FileSystem;
 using AgileAI.Studio.Api.Services;
-using AgileAI.Studio.Api.Tools;
 
 namespace AgileAI.Tests;
 
@@ -133,7 +132,7 @@ public class StudioWorkspaceToolsTests : IDisposable
             new DeleteDirectoryTool(_pathGuard));
         var registryFactory = new StudioToolRegistryFactory(
             fileSystemFactory,
-            new RunLocalCommandTool(new ProcessExecutionService()),
+            new RunLocalCommandTool(new AgileAI.Core.ProcessExecutionService()),
             new WebFetchTool(webFetchHttpClient));
 
         var registry = registryFactory.CreateDefaultRegistry();

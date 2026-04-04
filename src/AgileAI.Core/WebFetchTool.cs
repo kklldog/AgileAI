@@ -1,8 +1,7 @@
-using System.Net;
 using System.Text.Json;
 using AgileAI.Abstractions;
 
-namespace AgileAI.Studio.Api.Tools;
+namespace AgileAI.Core;
 
 public sealed class WebFetchTool(HttpClient httpClient) : ITool
 {

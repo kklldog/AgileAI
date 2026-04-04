@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace AgileAI.Studio.Api.Services;
+namespace AgileAI.Core;
 
 public sealed class ProcessExecutionService
 {

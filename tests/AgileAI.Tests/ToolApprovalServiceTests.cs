@@ -3,7 +3,6 @@ using AgileAI.Studio.Api.Domain;
 using AgileAI.Studio.Api.Services;
 using AgileAI.Core;
 using AgileAI.Extensions.FileSystem;
-using AgileAI.Studio.Api.Tools;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -126,7 +125,7 @@ public class ToolApprovalServiceTests
             new PatchFileTool(pathGuard),
             new DeleteFileTool(pathGuard, fileSystemOptions),
             new DeleteDirectoryTool(pathGuard));
-        var processExecutionService = new ProcessExecutionService();
+        var processExecutionService = new AgileAI.Core.ProcessExecutionService();
         var studioRegistryFactory = new StudioToolRegistryFactory(
             fileSystemFactory,
             new RunLocalCommandTool(processExecutionService),

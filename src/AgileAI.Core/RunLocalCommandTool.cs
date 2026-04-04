@@ -1,8 +1,7 @@
 using System.Text.Json;
 using AgileAI.Abstractions;
-using AgileAI.Studio.Api.Services;
 
-namespace AgileAI.Studio.Api.Tools;
+namespace AgileAI.Core;
 
 public sealed class RunLocalCommandTool(ProcessExecutionService processExecutionService) : ITool, IApprovalAwareTool
 {
