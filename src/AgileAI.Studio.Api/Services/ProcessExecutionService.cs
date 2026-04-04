@@ -35,17 +35,20 @@ public sealed class ProcessExecutionService
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(timeoutMs);
 
+        var timedOut = false;
         try
         {
             await process.WaitForExitAsync(timeoutCts.Token);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            timedOut = true;
             try
             {
                 if (!process.HasExited)
                 {
                     process.Kill(true);
+                    await process.WaitForExitAsync(cancellationToken);
                 }
             }
             catch
@@ -56,8 +59,6 @@ public sealed class ProcessExecutionService
         var stdout = await stdOutTask;
         var stderr = await stdErrTask;
         var completedAt = DateTimeOffset.UtcNow;
-        var timedOut = !process.HasExited;
-
         return new ProcessExecutionResult(
             resolvedShell,
             command,

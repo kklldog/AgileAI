@@ -5,13 +5,17 @@ using AgileAI.Studio.Api.Tools;
 
 namespace AgileAI.Studio.Api.Services;
 
-public sealed class StudioToolRegistryFactory(FileSystemToolRegistryFactory fileSystemToolRegistryFactory, RunLocalCommandTool runLocalCommandTool)
+public sealed class StudioToolRegistryFactory(
+    FileSystemToolRegistryFactory fileSystemToolRegistryFactory,
+    RunLocalCommandTool runLocalCommandTool,
+    WebFetchTool webFetchTool)
 {
     public IToolRegistry CreateDefaultRegistry()
     {
         var registry = new InMemoryToolRegistry();
         registry.Register(fileSystemToolRegistryFactory.CreateDefaultRegistry().GetAllTools());
         registry.Register(runLocalCommandTool);
+        registry.Register(webFetchTool);
         return registry;
     }
 

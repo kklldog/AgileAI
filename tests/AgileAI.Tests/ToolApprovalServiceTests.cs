@@ -110,6 +110,11 @@ public class ToolApprovalServiceTests
             MaxReadCharacters = 12000
         };
         var pathGuard = new FileSystemPathGuard(fileSystemOptions);
+        var webFetchHttpClient = new HttpClient(new FakeHttpMessageHandler((request, ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("ok")
+            })));
         var fileSystemFactory = new FileSystemToolRegistryFactory(
             new ListDirectoryTool(pathGuard),
             new SearchFilesTool(pathGuard),
@@ -122,7 +127,10 @@ public class ToolApprovalServiceTests
             new DeleteFileTool(pathGuard, fileSystemOptions),
             new DeleteDirectoryTool(pathGuard));
         var processExecutionService = new ProcessExecutionService();
-        var studioRegistryFactory = new StudioToolRegistryFactory(fileSystemFactory, new RunLocalCommandTool(processExecutionService));
+        var studioRegistryFactory = new StudioToolRegistryFactory(
+            fileSystemFactory,
+            new RunLocalCommandTool(processExecutionService),
+            new WebFetchTool(webFetchHttpClient));
         var agentService = new AgentService(dbContext, modelCatalogService, studioRegistryFactory, skillRegistry);
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
         var toolApprovalService = new ToolApprovalService(

@@ -1,6 +1,8 @@
 using AgileAI.Abstractions;
 using AgileAI.Core;
 using AgileAI.Extensions.FileSystem;
+using AgileAI.Studio.Api.Services;
+using AgileAI.Studio.Api.Tools;
 
 namespace AgileAI.Tests;
 
@@ -108,6 +110,36 @@ public class StudioWorkspaceToolsTests : IDisposable
         Assert.Contains("root readme", result.Content);
         Assert.Contains("Path: docs/guide.md", result.Content);
         Assert.Contains("guide body", result.Content);
+    }
+
+    [Fact]
+    public void StudioToolRegistryFactory_ShouldExposeWebFetchTool()
+    {
+        var webFetchHttpClient = new HttpClient(new FakeHttpMessageHandler((request, ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent("ok")
+            })));
+        var fileSystemFactory = new FileSystemToolRegistryFactory(
+            new ListDirectoryTool(_pathGuard),
+            new SearchFilesTool(_pathGuard),
+            new ReadFileTool(_pathGuard, _options),
+            new ReadFilesBatchTool(_pathGuard, _options),
+            new WriteFileTool(_pathGuard),
+            new CreateDirectoryTool(_pathGuard),
+            new MoveFileTool(_pathGuard),
+            new PatchFileTool(_pathGuard),
+            new DeleteFileTool(_pathGuard, _options),
+            new DeleteDirectoryTool(_pathGuard));
+        var registryFactory = new StudioToolRegistryFactory(
+            fileSystemFactory,
+            new RunLocalCommandTool(new ProcessExecutionService()),
+            new WebFetchTool(webFetchHttpClient));
+
+        var registry = registryFactory.CreateDefaultRegistry();
+
+        Assert.True(registry.TryGetTool("web_fetch", out var tool));
+        Assert.NotNull(tool);
     }
 
     private static ToolExecutionContext CreateContext(string toolName, string arguments)

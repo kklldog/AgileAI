@@ -36,6 +36,7 @@ builder.Services.AddScoped<ToolApprovalService>();
 builder.Services.AddScoped<StudioToolExecutionGate>();
 builder.Services.AddScoped<ProcessExecutionService>();
 builder.Services.AddScoped<AgileAI.Studio.Api.Tools.RunLocalCommandTool>();
+builder.Services.AddHttpClient<AgileAI.Studio.Api.Tools.WebFetchTool>();
 builder.Services.AddScoped<StudioToolRegistryFactory>();
 builder.Services.AddSingleton<ProviderClientFactory>();
 builder.Services.AddFileSystemTools(new FileSystemToolOptions

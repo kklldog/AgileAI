@@ -119,6 +119,7 @@ AgileAI.Studio turns the SDK in this repo into a full local-first AI workspace.
 - create reusable agents with prompts, temperature, token limits, and pinned defaults
 - keep conversations persisted locally and chat with streaming responses in a polished desktop UI
 - execute unrestricted local commands through `run_local_command`, with a required user approval step for every execution
+- fetch webpage content through the built-in `web_fetch` Studio tool
 - verify the product with Playwright screenshots and e2e coverage
 
 **Studio Stack**
@@ -166,6 +167,21 @@ AgileAI now includes a reusable approval-aware tool execution model in core pack
 - Studio shows a chat-scoped approval card with the exact command preview, shell, and result status
 
 The reusable part lives in core abstractions and session orchestration. Studio adds the product-specific pieces: SQLite persistence, HTTP endpoints, SSE events, and the browser UI for approving or rejecting a pending command.
+
+### Built-in Web Fetch Tool
+
+AgileAI.Studio now includes a built-in `web_fetch` tool in the default Studio registry.
+
+- accepts absolute `http` and `https` URLs
+- performs a simple `GET` request and returns response content through the tool channel
+- truncates returned content to keep tool output bounded
+- is available to Studio agents through the same allowlist/filtering path as the existing built-in tools
+
+Current limitations:
+
+- no host allowlist is enforced yet
+- response bodies are fully read before returned content is truncated
+- network failures currently surface as tool exceptions rather than normalized failed tool results
 
 ### Real OpenAI-Compatible Providers
 
@@ -698,12 +714,22 @@ The test suite currently covers areas such as:
 - local skill prompt injection and deduplication
 - session store create/load/update/delete flows
 - active skill continuation behavior in the runtime
+- Studio backend service flows including model catalog, agent management, tool approval, command execution, and prompt-skill execution
+- built-in Studio tool coverage for `run_local_command` integration paths and the new `web_fetch` tool
 
 Run the full suite with:
 
 ```bash
 dotnet test AgileAI.slnx
 ```
+
+Latest measured backend coverage snapshot:
+
+- `220` passing tests in `tests/AgileAI.Tests`
+- `69.41%` total line coverage from `tests/AgileAI.Tests/TestResults/80a0b6f3-45ea-4e4c-8321-f279ac720964/coverage.cobertura.xml`
+- `57.61%` line coverage for `AgileAI.Studio.Api`
+
+The remaining biggest coverage gaps are in provider streaming/retry paths and Studio streaming orchestration, not in the newly added `web_fetch` tool path.
 
 ## Build
 
