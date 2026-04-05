@@ -1,5 +1,10 @@
 # AgileAI
 
+[![Publish AgileAI.Core](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-core.yml/badge.svg?branch=main)](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-core.yml)
+[![NuGet Version](https://img.shields.io/nuget/v/AgileAI.Core)](https://www.nuget.org/packages/AgileAI.Core)
+[![Coverage](https://img.shields.io/badge/coverage-69.41%25-yellowgreen)](#testing-and-coverage)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 A lightweight .NET AI SDK for building chat applications with provider routing, streaming responses, tool calling, local skills, and session persistence.
 
 > Current status: MVP. The project includes multiple provider integrations, a runtime/session layer, local file-based skills, runnable samples, and unit tests.
