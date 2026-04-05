@@ -207,11 +207,7 @@ If you have an OpenAI-compatible endpoint for a model such as `gpt-5.4`, add it 
 
 ### Screenshots
 
-Playwright-generated screenshots are stored under `studio-web/screenshots/` after running the e2e suite.
-
-#### Overview
-
-![AgileAI Studio overview](studio-web/screenshots/studio-overview.png)
+Playwright-generated screenshots are stored under `studio-web/screenshots/` after running the dedicated screenshot suite (`npm run test:screenshots`).
 
 #### Models
 

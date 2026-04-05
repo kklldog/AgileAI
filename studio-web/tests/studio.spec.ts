@@ -176,10 +176,43 @@ test('real provider flow can create provider model agent and send a chat message
   await expect(page.getByTestId('message-assistant').filter({ hasText: /Playwright real chat ok/i }).last()).toBeVisible({ timeout: 90000 })
 })
 
-test('mock provider chat can require command approval and resolve it from the approval card', async ({ page }) => {
+test('mock provider chat can require command approval and resolve it from the approval card', async ({ page, request }) => {
   test.setTimeout(90_000)
 
   const approvalAgentName = `PW Approval Agent ${Date.now()}`
+  const approvalProviderName = `PW Approval Provider ${Date.now()}`
+  const approvalModelName = `PW Approval Model ${Date.now()}`
+  const providerCreateResponse = await request.post('http://127.0.0.1:5117/api/provider-connections', {
+    data: {
+      name: approvalProviderName,
+      providerType: 1,
+      apiKey: 'demo-local',
+      baseUrl: 'mock://studio/v1/',
+      endpoint: null,
+      providerName: null,
+      relativePath: null,
+      apiKeyHeaderName: null,
+      authMode: null,
+      apiVersion: null,
+      isEnabled: true,
+    },
+  })
+  expect(providerCreateResponse.ok()).toBeTruthy()
+  const createdProvider = await providerCreateResponse.json()
+
+  const modelCreateResponse = await request.post('http://127.0.0.1:5117/api/models', {
+    data: {
+      providerConnectionId: createdProvider.id,
+      displayName: approvalModelName,
+      modelKey: 'gpt-4o-mini',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: false,
+      isEnabled: true,
+    },
+  })
+  expect(modelCreateResponse.ok()).toBeTruthy()
+  const createdModel = await modelCreateResponse.json()
 
   await page.goto('/agents')
   await page.getByTestId('create-agent').click()
@@ -188,7 +221,7 @@ test('mock provider chat can require command approval and resolve it from the ap
   await page.getByTestId('agent-name-input').locator('input').fill(approvalAgentName)
   await page.getByTestId('agent-description-input').locator('textarea').fill('Playwright approval flow agent.')
   await page.locator('.agent-modal-shell .n-base-selection').click()
-  await page.locator('.n-base-select-menu .n-base-select-option').filter({ hasNotText: 'PW Real Model' }).first().click()
+  await page.locator('.n-base-select-menu .n-base-select-option', { hasText: approvalModelName }).click()
   await page.getByTestId('agent-prompt-input').locator('textarea').fill('Use tools when necessary.')
   await page.getByTestId('save-agent').click()
   await expect(page.locator('.agent-card', { hasText: approvalAgentName }).first()).toBeVisible()
@@ -209,9 +242,8 @@ test('mock provider chat can require command approval and resolve it from the ap
   await approvalModal.locator('[data-testid^="approval-approve-"]').click()
 
   const assistantBubble = page.locator('[data-testid="message-assistant"]').last()
-  await expect(assistantBubble).toContainText(/local command/i, { timeout: 30_000 })
-  await expect(assistantBubble).toContainText(/successfully/i, { timeout: 30_000 })
-  await expect(assistantBubble).toContainText(/local[ -]command[ -]approval[ -]test/i, { timeout: 30_000 })
+  await expect(assistantBubble).toContainText(/workspace tool completed successfully/i, { timeout: 30_000 })
+  await expect(assistantBubble).toContainText(/Playwright command ok/i, { timeout: 30_000 })
   await expect(assistantBubble.locator('[data-testid^="tool-history-"]').last()).toContainText('run_local_command')
 
   await page.getByTestId('chat-input').locator('textarea').fill('Please run local command approval test again')
@@ -220,8 +252,8 @@ test('mock provider chat can require command approval and resolve it from the ap
   await expect(page.getByTestId('approval-modal')).toBeHidden({ timeout: 10_000 })
 
   const latestAssistantBubble = page.locator('[data-testid="message-assistant"]').last()
-  await expect(latestAssistantBubble).toContainText(/local command/i, { timeout: 30_000 })
-  await expect(latestAssistantBubble).toContainText(/successfully/i, { timeout: 30_000 })
+  await expect(latestAssistantBubble).toContainText(/workspace tool completed successfully/i, { timeout: 30_000 })
+  await expect(latestAssistantBubble).toContainText(/Playwright command ok/i, { timeout: 30_000 })
   await expect(latestAssistantBubble.locator('[data-testid^="tool-history-"]').last()).toContainText('run_local_command')
 })
 

@@ -35,7 +35,14 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
         var toolResponse = BuildToolResponse(request);
         if (toolResponse?.Message?.ToolCalls?.Count > 0)
         {
-            yield return new CompletedUpdate("tool_call");
+            foreach (var toolCall in toolResponse.Message.ToolCalls)
+            {
+                yield return new ToolCallDeltaUpdate(
+                    toolCall.Id,
+                    toolCall.Name,
+                    toolCall.Arguments);
+            }
+            yield return new CompletedUpdate("tool_calls");
             yield break;
         }
 

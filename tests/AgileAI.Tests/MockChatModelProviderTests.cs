@@ -82,9 +82,10 @@ public class MockChatModelProviderTests
             updates.Add(update);
         }
 
-        var completed = Assert.Single(updates);
+        Assert.Contains(updates, update => update is ToolCallDeltaUpdate toolCall && toolCall.ToolCallId == "tool-call-1" && toolCall.NameDelta == "run_local_command");
+        var completed = Assert.IsType<CompletedUpdate>(updates[^1]);
         Assert.IsType<CompletedUpdate>(completed);
-        Assert.Equal("tool_call", ((CompletedUpdate)completed).FinishReason);
+        Assert.Equal("tool_calls", completed.FinishReason);
     }
 
     [Fact]
