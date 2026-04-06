@@ -13,7 +13,7 @@
         </div>
         <div v-else class="provider-grid provider-grid-single">
           <n-card
-            v-for="item in store.providerConnections"
+            v-for="item in visibleProviders"
             :key="item.id"
             class="provider-card"
             :class="{ selected: item.id === selectedProviderId }"
@@ -66,6 +66,13 @@
             </template>
           </n-card>
         </div>
+        <div v-if="store.providerConnections.length > 0" class="list-progress">
+          <n-text depth="3">Showing {{ visibleProviders.length }} / {{ store.providerConnections.length }} providers</n-text>
+        </div>
+        <div v-if="hasMoreProviders" ref="providerListSentinel" class="list-sentinel" aria-hidden="true"></div>
+        <div v-if="hasMoreProviders" class="list-actions">
+          <n-button secondary @click="loadMoreProviders">Load more providers</n-button>
+        </div>
       </n-card>
 
       <n-card class="glass-card models-panel" embedded>
@@ -87,7 +94,7 @@
         </div>
         <div v-else class="model-grid">
           <n-card
-            v-for="item in selectedProviderModels"
+            v-for="item in visibleSelectedProviderModels"
             :key="item.id"
             class="model-card"
             embedded
@@ -132,6 +139,13 @@
             </n-descriptions>
           </n-card>
         </div>
+        <div v-if="selectedProviderModels.length > 0" class="list-progress">
+          <n-text depth="3">Showing {{ visibleSelectedProviderModels.length }} / {{ selectedProviderModels.length }} models</n-text>
+        </div>
+        <div v-if="hasMoreSelectedProviderModels" ref="modelListSentinel" class="list-sentinel" aria-hidden="true"></div>
+        <div v-if="hasMoreSelectedProviderModels" class="list-actions">
+          <n-button secondary @click="loadMoreModels">Load more models</n-button>
+        </div>
       </n-card>
     </div>
 
@@ -170,7 +184,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useMessage, NButton, NCard, NForm, NFormItem, NInput, NModal, NPopconfirm, NSelect, NSpace, NSwitch, NTag, NIcon, NText, NEllipsis, NDescriptions, NDescriptionsItem, NDivider } from 'naive-ui'
 import { CreateOutline, TrashOutline, ServerOutline, CubeOutline, FlashOutline } from '@vicons/ionicons5'
 import { useStudioStore } from '../stores/studio'
@@ -185,6 +199,14 @@ const showModelModal = ref(false)
 const editingProvider = ref<ProviderConnection | null>(null)
 const editingModel = ref<ModelItem | null>(null)
 const selectedProviderId = ref('')
+const PROVIDER_BATCH_SIZE = 8
+const MODEL_BATCH_SIZE = 12
+const visibleProviderCount = ref(PROVIDER_BATCH_SIZE)
+const visibleModelCount = ref(MODEL_BATCH_SIZE)
+const providerListSentinel = ref<HTMLElement | null>(null)
+const modelListSentinel = ref<HTMLElement | null>(null)
+let providerListObserver: IntersectionObserver | null = null
+let modelListObserver: IntersectionObserver | null = null
 
 const providerForm = reactive<ProviderConnectionPayload>({
   name: '',
@@ -282,6 +304,16 @@ const selectedProviderModels = computed(() =>
   store.models.filter((item) => item.providerConnectionId === selectedProviderId.value),
 )
 
+const visibleProviders = computed(() => store.providerConnections.slice(0, visibleProviderCount.value))
+
+const visibleSelectedProviderModels = computed(() =>
+  selectedProviderModels.value.slice(0, visibleModelCount.value),
+)
+
+const hasMoreProviders = computed(() => visibleProviderCount.value < store.providerConnections.length)
+
+const hasMoreSelectedProviderModels = computed(() => visibleModelCount.value < selectedProviderModels.value.length)
+
 const isProviderValid = computed(() => {
   if (!providerForm.name.trim() || !providerForm.apiKey.trim()) {
     return false
@@ -323,6 +355,85 @@ function selectProvider(providerId: string) {
   selectedProviderId.value = providerId
 }
 
+function loadMoreProviders() {
+  visibleProviderCount.value = Math.min(visibleProviderCount.value + PROVIDER_BATCH_SIZE, store.providerConnections.length)
+}
+
+function loadMoreModels() {
+  visibleModelCount.value = Math.min(visibleModelCount.value + MODEL_BATCH_SIZE, selectedProviderModels.value.length)
+}
+
+function syncVisibleCount(target: { value: number }, batchSize: number, nextLength: number, previousLength?: number) {
+  if (nextLength === 0) {
+    target.value = batchSize
+    return
+  }
+
+  if ((previousLength ?? 0) <= target.value || nextLength <= target.value) {
+    target.value = Math.min(Math.max(target.value, batchSize), nextLength)
+    return
+  }
+
+  target.value = Math.min(target.value, nextLength)
+}
+
+function ensureSelectedProviderVisible() {
+  if (!selectedProviderId.value) {
+    return
+  }
+
+  const selectedIndex = store.providerConnections.findIndex((item) => item.id === selectedProviderId.value)
+  if (selectedIndex >= 0) {
+    visibleProviderCount.value = Math.max(visibleProviderCount.value, selectedIndex + 1)
+  }
+}
+
+function setupProviderObserver() {
+  if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+    return
+  }
+
+  providerListObserver?.disconnect()
+  providerListObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      loadMoreProviders()
+    }
+  }, {
+    rootMargin: '0px 0px 240px 0px',
+  })
+
+  if (providerListSentinel.value) {
+    providerListObserver.observe(providerListSentinel.value)
+  }
+}
+
+function setupModelObserver() {
+  if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+    return
+  }
+
+  modelListObserver?.disconnect()
+  modelListObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      loadMoreModels()
+    }
+  }, {
+    rootMargin: '0px 0px 240px 0px',
+  })
+
+  if (modelListSentinel.value) {
+    modelListObserver.observe(modelListSentinel.value)
+  }
+}
+
+watch(providerListSentinel, () => {
+  setupProviderObserver()
+})
+
+watch(modelListSentinel, () => {
+  setupModelObserver()
+})
+
 watch(
   () => store.providerConnections,
   (providers) => {
@@ -334,9 +445,47 @@ watch(
     if (!providers.some((item) => item.id === selectedProviderId.value)) {
       selectedProviderId.value = providers[0].id
     }
+
+    ensureSelectedProviderVisible()
   },
   { immediate: true, deep: true },
 )
+
+watch(
+  () => store.providerConnections.length,
+  (nextLength, previousLength) => {
+    syncVisibleCount(visibleProviderCount, PROVIDER_BATCH_SIZE, nextLength, previousLength)
+    ensureSelectedProviderVisible()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => selectedProviderId.value,
+  () => {
+    visibleModelCount.value = MODEL_BATCH_SIZE
+    ensureSelectedProviderVisible()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => selectedProviderModels.value.length,
+  (nextLength, previousLength) => {
+    syncVisibleCount(visibleModelCount, MODEL_BATCH_SIZE, nextLength, previousLength)
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  setupProviderObserver()
+  setupModelObserver()
+})
+
+onBeforeUnmount(() => {
+  providerListObserver?.disconnect()
+  modelListObserver?.disconnect()
+})
 
 function resetProviderForm() {
   Object.assign(providerForm, {
@@ -518,5 +667,22 @@ async function handleTestModel(id: string) {
 
 .models-panel-title {
   margin: 0;
+}
+
+.list-progress {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.list-sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.list-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 </style>

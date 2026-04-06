@@ -11,7 +11,7 @@
         </div>
         <div v-else class="agent-grid">
           <n-card
-            v-for="agent in store.agents"
+            v-for="agent in visibleAgents"
             :key="agent.id"
             hoverable
             class="agent-card"
@@ -46,6 +46,13 @@
               </n-space>
             </template>
           </n-card>
+        </div>
+        <div v-if="store.agents.length > 0" class="list-progress">
+          <n-text depth="3">Showing {{ visibleAgents.length }} / {{ store.agents.length }} agents</n-text>
+        </div>
+        <div v-if="hasMoreAgents" ref="agentListSentinel" class="list-sentinel" aria-hidden="true"></div>
+        <div v-if="hasMoreAgents" class="list-actions">
+          <n-button secondary @click="loadMoreAgents">Load more agents</n-button>
         </div>
       </n-card>
     </div>
@@ -112,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage, NButton, NCard, NCheckbox, NCheckboxGroup, NCollapse, NCollapseItem, NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NSelect, NSwitch, NTag, NIcon, NText, NEllipsis, NSpace } from 'naive-ui'
 import { CreateOutline, TrashOutline, BoatOutline } from '@vicons/ionicons5'
@@ -126,6 +133,10 @@ const router = useRouter()
 
 const showModal = ref(false)
 const editing = ref<AgentItem | null>(null)
+const AGENT_BATCH_SIZE = 12
+const visibleAgentCount = ref(AGENT_BATCH_SIZE)
+const agentListSentinel = ref<HTMLElement | null>(null)
+let agentListObserver: IntersectionObserver | null = null
 
 const form = reactive<AgentPayload>({
   studioModelId: '',
@@ -147,6 +158,10 @@ const modelOptions = computed(() =>
 const toolOptions = computed(() =>
   store.agentTools.map((tool) => ({ label: tool.name, value: tool.name })),
 )
+
+const visibleAgents = computed(() => store.agents.slice(0, visibleAgentCount.value))
+
+const hasMoreAgents = computed(() => visibleAgentCount.value < store.agents.length)
 
 const isFormValid = computed(() => {
   return Boolean(
@@ -202,6 +217,63 @@ function toggleAllowedSkill(skillName: string, checked: boolean) {
 
   form.allowedSkillNames = form.allowedSkillNames.filter((item) => item !== skillName)
 }
+
+function loadMoreAgents() {
+  visibleAgentCount.value = Math.min(visibleAgentCount.value + AGENT_BATCH_SIZE, store.agents.length)
+}
+
+function syncVisibleAgentCount(nextLength: number, previousLength?: number) {
+  if (nextLength === 0) {
+    visibleAgentCount.value = AGENT_BATCH_SIZE
+    return
+  }
+
+  if ((previousLength ?? 0) <= visibleAgentCount.value || nextLength <= visibleAgentCount.value) {
+    visibleAgentCount.value = Math.min(Math.max(visibleAgentCount.value, AGENT_BATCH_SIZE), nextLength)
+    return
+  }
+
+  visibleAgentCount.value = Math.min(visibleAgentCount.value, nextLength)
+}
+
+function setupAgentObserver() {
+  if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
+    return
+  }
+
+  agentListObserver?.disconnect()
+  agentListObserver = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) {
+      loadMoreAgents()
+    }
+  }, {
+    rootMargin: '0px 0px 240px 0px',
+  })
+
+  if (agentListSentinel.value) {
+    agentListObserver.observe(agentListSentinel.value)
+  }
+}
+
+watch(agentListSentinel, () => {
+  setupAgentObserver()
+})
+
+watch(
+  () => store.agents.length,
+  (nextLength, previousLength) => {
+    syncVisibleAgentCount(nextLength, previousLength)
+  },
+  { immediate: true },
+)
+
+onMounted(() => {
+  setupAgentObserver()
+})
+
+onBeforeUnmount(() => {
+  agentListObserver?.disconnect()
+})
 
 async function submit() {
   if (!isFormValid.value) {
@@ -261,6 +333,23 @@ function navigateToChat(agent: AgentItem) {
 
 .agent-tool-group {
   width: 100%;
+}
+
+.list-progress {
+  display: flex;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.list-sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.list-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
 }
 
 .agent-tools-collapse {
