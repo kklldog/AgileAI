@@ -1,6 +1,6 @@
 # AgileAI
 
-[![Publish AgileAI.Core](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-core.yml/badge.svg?branch=main)](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-core.yml)
+[![Publish AgileAI NuGet packages](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-packages.yml/badge.svg?branch=main)](https://github.com/kklldog/AgileAI/actions/workflows/publish-agileai-packages.yml)
 [![NuGet Version](https://img.shields.io/nuget/v/AgileAI.Core)](https://www.nuget.org/packages/AgileAI.Core)
 [![Coverage](https://img.shields.io/badge/coverage-69.41%25-yellowgreen)](#testing-and-coverage)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -819,7 +819,7 @@ dotnet run
 
 ## License
 
-No license has been added yet.
+MIT
 
 ## Community and Support
 
