@@ -1,4 +1,4 @@
-name: Publish AgileAI packages
+name: Publish AgileAI NuGet packages
 
 on:
   push:
@@ -28,6 +28,8 @@ jobs:
       fail-fast: false
       matrix:
         package:
+          - package_id: AgileAI.Core
+            csproj: src/AgileAI.Core/AgileAI.Core.csproj
           - package_id: AgileAI.Abstractions
             csproj: src/AgileAI.Abstractions/AgileAI.Abstractions.csproj
           - package_id: AgileAI.Extensions.FileSystem
