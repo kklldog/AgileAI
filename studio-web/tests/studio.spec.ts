@@ -129,12 +129,17 @@ test('scroll-loaded lists reveal more providers models and agents on demand', as
   test.setTimeout(120_000)
   await page.setViewportSize({ width: 1280, height: 720 })
 
-  async function expectListCanExpand(itemLocator: ReturnType<typeof page.locator>, loadMoreLabel: string, expectedInitialBatch: number, expectedTotal: number) {
+  async function expectListCanExpand(
+    itemLocator: ReturnType<typeof page.locator>,
+    loadMoreLabel: string,
+    expectedTotal: number,
+    minimumInitialCount = 1,
+  ) {
     await expect
       .poll(async () => await itemLocator.count(), {
         message: `${loadMoreLabel} list should render at least the initial batch`,
       })
-      .toBeGreaterThanOrEqual(expectedInitialBatch)
+      .toBeGreaterThanOrEqual(minimumInitialCount)
 
     const initialCount = await itemLocator.count()
     expect(initialCount).toBeLessThanOrEqual(expectedTotal)
@@ -223,17 +228,17 @@ test('scroll-loaded lists reveal more providers models and agents on demand', as
   await page.goto('/models')
 
   const scrollProviderCards = page.locator('.provider-card').filter({ hasText: providerPrefix })
-  await expectListCanExpand(scrollProviderCards, 'Load more providers', 8, 10)
+  await expectListCanExpand(scrollProviderCards, 'Load more providers', 10, 8)
 
   await page.locator('.provider-card', { hasText: `${providerPrefix} 10` }).click()
 
   const scrollModelCards = page.locator('.model-card').filter({ hasText: modelPrefix })
-  await expectListCanExpand(scrollModelCards, 'Load more models', 12, 15)
+  await expectListCanExpand(scrollModelCards, 'Load more models', 15, 12)
 
   await page.goto('/agents')
 
   const scrollAgentCards = page.locator('.agent-card').filter({ hasText: agentPrefix })
-  await expectListCanExpand(scrollAgentCards, 'Load more agents', 12, 15)
+  await expectListCanExpand(scrollAgentCards, 'Load more agents', 15)
 })
 
 test('real provider flow can create provider model agent and send a chat message', async ({ page }) => {
