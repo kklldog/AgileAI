@@ -820,3 +820,7 @@ dotnet run
 ## License
 
 No license has been added yet.
+
+## Community and Support
+
+https://linux.do
