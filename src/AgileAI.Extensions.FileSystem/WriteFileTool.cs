@@ -3,6 +3,7 @@ using AgileAI.Abstractions;
 
 namespace AgileAI.Extensions.FileSystem;
 
+[NeedApproval]
 public class WriteFileTool(FileSystemPathGuard pathGuard) : ITool
 {
     public string Name => "write_file";

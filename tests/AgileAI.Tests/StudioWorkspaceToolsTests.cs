@@ -54,6 +54,20 @@ public class StudioWorkspaceToolsTests : IDisposable
     }
 
     [Fact]
+    public void RegisterFileSystemTools_ShouldMarkWriteOperationsAsApprovalRequired()
+    {
+        var registry = new InMemoryToolRegistry()
+            .RegisterFileSystemTools(new FileSystemToolOptions { RootPath = _workspaceRoot });
+
+        var definitions = registry.GetToolDefinitions();
+        var writeFile = Assert.Single(definitions, x => x.Name == "write_file");
+        var patchFile = Assert.Single(definitions, x => x.Name == "patch_file");
+
+        Assert.Equal(ToolApprovalMode.PerExecution, writeFile.ApprovalMode);
+        Assert.Equal(ToolApprovalMode.PerExecution, patchFile.ApprovalMode);
+    }
+
+    [Fact]
     public async Task ListDirectoryTool_ShouldReturnWorkspaceEntries()
     {
         Directory.CreateDirectory(Path.Combine(_workspaceRoot, "docs"));

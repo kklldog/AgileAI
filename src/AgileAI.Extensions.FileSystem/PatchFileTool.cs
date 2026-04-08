@@ -4,6 +4,7 @@ using AgileAI.Abstractions;
 
 namespace AgileAI.Extensions.FileSystem;
 
+[NeedApproval]
 public class PatchFileTool(FileSystemPathGuard pathGuard) : ITool
 {
     public string Name => "patch_file";
