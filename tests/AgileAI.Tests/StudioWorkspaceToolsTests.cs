@@ -54,7 +54,7 @@ public class StudioWorkspaceToolsTests : IDisposable
     }
 
     [Fact]
-    public void RegisterFileSystemTools_ShouldMarkWriteOperationsAsApprovalRequired()
+    public void RegisterFileSystemTools_ShouldMarkMutatingOperationsAsApprovalRequired()
     {
         var registry = new InMemoryToolRegistry()
             .RegisterFileSystemTools(new FileSystemToolOptions { RootPath = _workspaceRoot });
@@ -62,9 +62,17 @@ public class StudioWorkspaceToolsTests : IDisposable
         var definitions = registry.GetToolDefinitions();
         var writeFile = Assert.Single(definitions, x => x.Name == "write_file");
         var patchFile = Assert.Single(definitions, x => x.Name == "patch_file");
+        var createDirectory = Assert.Single(definitions, x => x.Name == "create_directory");
+        var moveFile = Assert.Single(definitions, x => x.Name == "move_file");
+        var deleteFile = Assert.Single(definitions, x => x.Name == "delete_file");
+        var deleteDirectory = Assert.Single(definitions, x => x.Name == "delete_directory");
 
         Assert.Equal(ToolApprovalMode.PerExecution, writeFile.ApprovalMode);
         Assert.Equal(ToolApprovalMode.PerExecution, patchFile.ApprovalMode);
+        Assert.Equal(ToolApprovalMode.PerExecution, createDirectory.ApprovalMode);
+        Assert.Equal(ToolApprovalMode.PerExecution, moveFile.ApprovalMode);
+        Assert.Equal(ToolApprovalMode.PerExecution, deleteFile.ApprovalMode);
+        Assert.Equal(ToolApprovalMode.PerExecution, deleteDirectory.ApprovalMode);
     }
 
     [Fact]
