@@ -228,6 +228,42 @@ public class ChatSessionTests
     }
 
     [Fact]
+    public async Task SendTurnAsync_WithAttributeMarkedTool_ShouldReturnPendingApprovalWithoutExecutingTool()
+    {
+        var toolCall = new ToolCall { Id = "call-attribute-approval", Name = "attribute-approval-tool", Arguments = "{}" };
+        var mockChatClient = new Mock<IChatClient>();
+        mockChatClient.Setup(c => c.CompleteAsync(It.IsAny<ChatRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ChatResponse
+            {
+                IsSuccess = true,
+                Message = new ChatMessage
+                {
+                    Role = ChatRole.Assistant,
+                    TextContent = "Need to run an attribute-gated tool.",
+                    ToolCalls = [toolCall]
+                }
+            });
+
+        var tool = new AttributeApprovalTestTool("attribute-approval-tool", "approved-result");
+        var registry = new InMemoryToolRegistry();
+        registry.Register(tool);
+
+        var session = new ChatSession(
+            mockChatClient.Object,
+            "test-model",
+            registry,
+            toolExecutionGate: new PendingExecutionGate());
+
+        var result = await session.SendTurnAsync("hello");
+
+        Assert.NotNull(result.PendingApprovalRequest);
+        Assert.Equal("attribute-approval-tool", result.PendingApprovalRequest!.ToolName);
+        Assert.Equal(0, tool.ExecutionCount);
+        Assert.Equal(2, session.History.Count);
+        Assert.Equal(ChatRole.Assistant, session.History[1].Role);
+    }
+
+    [Fact]
     public async Task ContinueAsync_AfterApprovedToolResult_ShouldResumeLoopAndSupportAnotherPendingApproval()
     {
         var firstToolCall = new ToolCall { Id = "call-1", Name = "approval-tool", Arguments = "{}" };
@@ -407,6 +443,26 @@ public class ChatSessionTests
         public string? Description => "approval-aware test tool";
         public object? ParametersSchema => new { };
         public ToolApprovalMode ApprovalMode => ToolApprovalMode.PerExecution;
+        public int ExecutionCount { get; private set; }
+
+        public Task<ToolResult> ExecuteAsync(ToolExecutionContext context, CancellationToken cancellationToken = default)
+        {
+            ExecutionCount++;
+            return Task.FromResult(new ToolResult
+            {
+                ToolCallId = context.ToolCall.Id,
+                Content = resultContent,
+                IsSuccess = true
+            });
+        }
+    }
+
+    [NeedApproval]
+    private sealed class AttributeApprovalTestTool(string name, string resultContent) : ITool
+    {
+        public string Name => name;
+        public string? Description => "attribute approval test tool";
+        public object? ParametersSchema => new { };
         public int ExecutionCount { get; private set; }
 
         public Task<ToolResult> ExecuteAsync(ToolExecutionContext context, CancellationToken cancellationToken = default)

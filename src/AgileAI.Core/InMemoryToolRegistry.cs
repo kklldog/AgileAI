@@ -36,7 +36,7 @@ public class InMemoryToolRegistry : IToolRegistry
             Name = t.Name,
             Description = t.Description,
             ParametersSchema = t.ParametersSchema,
-            ApprovalMode = t is IApprovalAwareTool approvalAwareTool ? approvalAwareTool.ApprovalMode : ToolApprovalMode.None
+            ApprovalMode = ToolApprovalMetadataResolver.ResolveApprovalMode(t)
         }).ToList();
     }
 }

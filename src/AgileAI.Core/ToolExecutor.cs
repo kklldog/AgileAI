@@ -47,8 +47,9 @@ public sealed class ToolExecutor
         CancellationToken cancellationToken)
     {
         ToolApprovalRequest? approvalRequest = null;
+        var approvalMode = ToolApprovalMetadataResolver.ResolveApprovalMode(tool);
 
-        if (tool is IApprovalAwareTool approvalAwareTool && approvalAwareTool.ApprovalMode == ToolApprovalMode.PerExecution)
+        if (approvalMode == ToolApprovalMode.PerExecution)
         {
             approvalRequest = new ToolApprovalRequest
             {
