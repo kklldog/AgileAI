@@ -4,8 +4,6 @@ using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace AgileAI.Studio.Api.Services;
 
@@ -18,13 +16,6 @@ public sealed class ToolApprovalService(
     IServiceProvider serviceProvider,
     StudioToolRegistryFactory toolRegistryFactory)
 {
-    private const int StudioMaxToolLoopIterations = 12;
-    private static readonly JsonSerializerOptions SseJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
     public async Task<ToolApprovalDto> CreatePendingApprovalAsync(
         Conversation conversation,
         Guid assistantMessageId,
@@ -78,14 +69,7 @@ public sealed class ToolApprovalService(
         var chatClient = providerClientFactory.CreateClient(runtime);
         var selectedToolNames = await agentService.GetSelectedToolNamesAsync(agent.Id, cancellationToken);
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
-        var chatSession = new ChatSessionBuilder(chatClient, runtime.RuntimeModelId)
-            .WithToolRegistry(toolRegistry)
-            .WithMaxToolLoopIterations(StudioMaxToolLoopIterations)
-            .WithToolExecutionGate(new StudioToolExecutionGate())
-            .UseServiceProvider(serviceProvider)
-            .WithConversationId(conversation.Id.ToString())
-            .WithHistory(BuildResumeHistory(conversation, assistantMessage.Id, approval))
-            .Build();
+        var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
 
         approval.DecisionComment = comment;
         approval.DecidedAtUtc = DateTimeOffset.UtcNow;
@@ -202,14 +186,7 @@ public sealed class ToolApprovalService(
         var chatClient = providerClientFactory.CreateClient(runtime);
         var selectedToolNames = await agentService.GetSelectedToolNamesAsync(agent.Id, cancellationToken);
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
-        var chatSession = new ChatSessionBuilder(chatClient, runtime.RuntimeModelId)
-            .WithToolRegistry(toolRegistry)
-            .WithMaxToolLoopIterations(StudioMaxToolLoopIterations)
-            .WithToolExecutionGate(new StudioToolExecutionGate())
-            .UseServiceProvider(serviceProvider)
-            .WithConversationId(conversation.Id.ToString())
-            .WithHistory(BuildResumeHistory(conversation, assistantMessage.Id, approval))
-            .Build();
+        var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
 
         approval.DecisionComment = comment;
         approval.DecidedAtUtc = DateTimeOffset.UtcNow;
@@ -263,10 +240,10 @@ public sealed class ToolApprovalService(
             switch (update)
             {
                 case ChatTurnTextDelta textDelta:
-                    await WriteSseAsync(response, "text-delta", new { delta = textDelta.Delta }, cancellationToken);
+                    await StudioSseWriter.WriteAsync(response, "text-delta", new { delta = textDelta.Delta }, cancellationToken);
                     break;
                 case ChatTurnUsage usage:
-                    await WriteSseAsync(response, "usage", new
+                    await StudioSseWriter.WriteAsync(response, "usage", new
                     {
                         inputTokens = usage.Usage.PromptTokens,
                         outputTokens = usage.Usage.CompletionTokens
@@ -299,8 +276,8 @@ public sealed class ToolApprovalService(
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await conversationService.TouchConversationAsync(conversation, cancellationToken);
 
-                    await WriteSseAsync(response, "approval-required", pendingApprovalDto, cancellationToken);
-                    await WriteSseAsync(response, "final-message", new
+                    await StudioSseWriter.WriteAsync(response, "approval-required", pendingApprovalDto, cancellationToken);
+                    await StudioSseWriter.WriteAsync(response, "final-message", new
                     {
                         content = waitingContent,
                         finishReason = (string?)null,
@@ -309,7 +286,7 @@ public sealed class ToolApprovalService(
                         appliedSkillName = assistantMessage.AppliedSkillName,
                         appliedToolNames = pendingApproval.ToolNames
                     }, cancellationToken);
-                    await WriteSseAsync(response, "completed", new { finishReason = "approval_required" }, cancellationToken);
+                    await StudioSseWriter.WriteAsync(response, "completed", new { finishReason = "approval_required" }, cancellationToken);
                     return;
                 }
                 case ChatTurnCompleted completed:
@@ -337,7 +314,7 @@ public sealed class ToolApprovalService(
                     await dbContext.SaveChangesAsync(cancellationToken);
                     await conversationService.TouchConversationAsync(conversation, cancellationToken);
 
-                    await WriteSseAsync(response, "final-message", new
+                    await StudioSseWriter.WriteAsync(response, "final-message", new
                     {
                         content = finalContent,
                         finishReason = completed.Response.FinishReason,
@@ -346,7 +323,7 @@ public sealed class ToolApprovalService(
                         appliedSkillName = assistantMessage.AppliedSkillName,
                         appliedToolNames = completed.ToolNames
                     }, cancellationToken);
-                    await WriteSseAsync(response, "completed", new { finishReason = completed.Response.FinishReason }, cancellationToken);
+                    await StudioSseWriter.WriteAsync(response, "completed", new { finishReason = completed.Response.FinishReason }, cancellationToken);
                     return;
                 }
                 case ChatTurnError error:
@@ -418,12 +395,24 @@ public sealed class ToolApprovalService(
             entity.DecidedAtUtc,
             entity.CompletedAtUtc);
 
-    private static async Task WriteSseAsync(HttpResponse response, string eventName, object payload, CancellationToken cancellationToken)
-    {
-        var json = JsonSerializer.Serialize(payload, SseJsonOptions);
-        await response.WriteAsync($"event: {eventName}\n", cancellationToken);
-        await response.WriteAsync($"data: {json}\n\n", cancellationToken);
-        await response.Body.FlushAsync(cancellationToken);
-    }
+    private Task<ChatSession> CreateSessionAsync(
+        Conversation conversation,
+        ConversationMessage assistantMessage,
+        ToolApprovalRequestEntity approval,
+        AgentDefinition agent,
+        string runtimeModelId,
+        IChatClient chatClient,
+        CancellationToken cancellationToken)
+        => StudioChatSessionFactory.CreateAsync(
+            agentService,
+            toolRegistryFactory,
+            new StudioToolExecutionGate(),
+            serviceProvider,
+            conversation,
+            agent,
+            runtimeModelId,
+            chatClient,
+            BuildResumeHistory(conversation, assistantMessage.Id, approval),
+            cancellationToken);
 
 }
