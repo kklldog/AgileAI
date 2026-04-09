@@ -34,6 +34,7 @@ builder.Services.AddScoped<ConversationService>();
 builder.Services.AddScoped<AgentExecutionService>();
 builder.Services.AddScoped<SkillService>();
 builder.Services.AddScoped<ToolApprovalService>();
+builder.Services.AddScoped<StudioStreamingTurnFinalizer>();
 builder.Services.AddScoped<StudioToolExecutionGate>();
 builder.Services.AddScoped<AgileAI.Core.ProcessExecutionService>();
 builder.Services.AddScoped<RunLocalCommandTool>();
