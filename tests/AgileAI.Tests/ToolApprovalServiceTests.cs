@@ -132,6 +132,7 @@ public class ToolApprovalServiceTests
             new WebFetchTool(webFetchHttpClient));
         var agentService = new AgentService(dbContext, modelCatalogService, studioRegistryFactory, skillRegistry);
         var serviceProvider = new ServiceCollection().BuildServiceProvider();
+        var streamingTurnFinalizer = new StudioStreamingTurnFinalizer(conversationService);
         var toolApprovalService = new ToolApprovalService(
             dbContext,
             conversationService,
@@ -139,7 +140,8 @@ public class ToolApprovalServiceTests
             modelCatalogService,
             new ProviderClientFactory(NullLoggerFactory.Instance),
             serviceProvider,
-            studioRegistryFactory);
+            studioRegistryFactory,
+            streamingTurnFinalizer);
 
         var created = await toolApprovalService.CreatePendingApprovalAsync(
             conversation,

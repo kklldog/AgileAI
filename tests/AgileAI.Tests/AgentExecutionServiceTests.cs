@@ -268,6 +268,7 @@ public class AgentExecutionServiceTests
                 .Setup(x => x.DecideAsync(It.IsAny<AgentRequest>(), It.IsAny<ConversationState?>(), It.IsAny<IReadOnlyList<ISkill>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(SkillContinuationDecision.NoContinuation());
             var serviceProvider = new ServiceCollection().BuildServiceProvider();
+            var streamingTurnFinalizer = new StudioStreamingTurnFinalizer(conversationService);
             var toolApprovalService = new ToolApprovalService(
                 dbContext,
                 conversationService,
@@ -275,7 +276,8 @@ public class AgentExecutionServiceTests
                 modelCatalogService,
                 providerClientFactory,
                 serviceProvider,
-                studioRegistryFactory);
+                studioRegistryFactory,
+                streamingTurnFinalizer);
             var agentExecutionService = new AgentExecutionService(
                 conversationService,
                 agentService,
@@ -289,7 +291,8 @@ public class AgentExecutionServiceTests
                 continuationMock.Object,
                 studioRegistryFactory,
                 new StudioToolExecutionGate(),
-                toolApprovalService);
+                toolApprovalService,
+                streamingTurnFinalizer);
 
             return new AgentExecutionHarness(connection, dbContext, provider, model, agent, conversation, runtimeMock, agentExecutionService);
         }
