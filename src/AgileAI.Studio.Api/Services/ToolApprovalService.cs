@@ -54,38 +54,23 @@ public sealed class ToolApprovalService(
 
     public async Task<ToolApprovalResolutionResultDto> ResolveApprovalAsync(Guid approvalId, bool approved, string? comment, CancellationToken cancellationToken)
     {
-        var approval = await dbContext.ToolApprovalRequests.FirstOrDefaultAsync(x => x.Id == approvalId, cancellationToken)
-            ?? throw new InvalidOperationException("Tool approval request not found.");
-
-        if (approval.Status != ToolApprovalStatus.Pending)
-        {
-            throw new InvalidOperationException("Tool approval request has already been resolved.");
-        }
-
-        var conversation = await conversationService.GetConversationEntityAsync(approval.ConversationId, cancellationToken);
-        var assistantMessage = conversation.Messages.FirstOrDefault(x => x.Id == approval.AssistantMessageId)
-            ?? throw new InvalidOperationException("Assistant placeholder message not found.");
-        var agent = conversation.AgentDefinition ?? throw new InvalidOperationException("Conversation agent is missing.");
-        var runtime = await modelCatalogService.GetRuntimeOptionsAsync(agent.StudioModelId, cancellationToken);
-        var chatClient = providerClientFactory.CreateClient(runtime);
-        var selectedToolNames = await agentService.GetSelectedToolNamesAsync(agent.Id, cancellationToken);
-        var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
-        var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
+        var context = await LoadApprovalExecutionContextAsync(approvalId, cancellationToken);
+        var approval = context.Approval;
 
         var toolResult = await ResolveToolResultAsync(
             approval,
             approved,
             comment,
-            toolRegistry,
-            chatSession,
-            conversation.Id.ToString(),
+            context.ToolRegistry,
+            context.ChatSession,
+            context.Conversation.Id.ToString(),
             cancellationToken);
 
-        chatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
-        var resumedTurn = await chatSession.ContinueAsync(new ChatOptions
+        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
+        var resumedTurn = await context.ChatSession.ContinueAsync(new ChatOptions
         {
-            Temperature = agent.Temperature,
-            MaxTokens = agent.MaxTokens
+            Temperature = context.Agent.Temperature,
+            MaxTokens = context.Agent.MaxTokens
         }, cancellationToken);
 
         if (!resumedTurn.Response.IsSuccess)
@@ -97,8 +82,8 @@ public sealed class ToolApprovalService(
         if (resumedTurn.PendingApprovalRequest != null)
         {
             pendingApprovalDto = await CreatePendingApprovalAsync(
-                conversation,
-                assistantMessage.Id,
+                context.Conversation,
+                context.AssistantMessage.Id,
                 resumedTurn.PendingApprovalRequest,
                 resumedTurn.Response.Message?.TextContent ?? string.Empty,
                 cancellationToken);
@@ -112,7 +97,7 @@ public sealed class ToolApprovalService(
         approval.CompletedAtUtc = DateTimeOffset.UtcNow;
 
         await conversationService.UpdateMessageAsync(
-            assistantMessage,
+            context.AssistantMessage,
             resumedTurn.PendingApprovalRequest == null
                 ? resumedTurn.Response.Message?.TextContent ?? string.Empty
                 : $"Command approval required for {resumedTurn.PendingApprovalRequest.ToolName}.",
@@ -120,17 +105,17 @@ public sealed class ToolApprovalService(
             resumedTurn.Response.FinishReason,
             resumedTurn.Response.Usage?.PromptTokens,
             resumedTurn.Response.Usage?.CompletionTokens,
-            assistantMessage.AppliedSkillName,
+            context.AssistantMessage.AppliedSkillName,
             null,
             cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await conversationService.TouchConversationAsync(conversation, cancellationToken);
+        await conversationService.TouchConversationAsync(context.Conversation, cancellationToken);
 
         return new ToolApprovalResolutionResultDto(
             MapApproval(approval),
-            ConversationService.MapMessage(assistantMessage),
-            await conversationService.MapConversationAsync(conversation, cancellationToken),
+            ConversationService.MapMessage(context.AssistantMessage),
+            await conversationService.MapConversationAsync(context.Conversation, cancellationToken),
             pendingApprovalDto);
     }
 
@@ -139,39 +124,24 @@ public sealed class ToolApprovalService(
         response.Headers.ContentType = "text/event-stream";
         response.Headers.CacheControl = "no-cache";
 
-        var approval = await dbContext.ToolApprovalRequests.FirstOrDefaultAsync(x => x.Id == approvalId, cancellationToken)
-            ?? throw new InvalidOperationException("Tool approval request not found.");
-
-        if (approval.Status != ToolApprovalStatus.Pending)
-        {
-            throw new InvalidOperationException("Tool approval request has already been resolved.");
-        }
-
-        var conversation = await conversationService.GetConversationEntityAsync(approval.ConversationId, cancellationToken);
-        var assistantMessage = conversation.Messages.FirstOrDefault(x => x.Id == approval.AssistantMessageId)
-            ?? throw new InvalidOperationException("Assistant placeholder message not found.");
-        var agent = conversation.AgentDefinition ?? throw new InvalidOperationException("Conversation agent is missing.");
-        var runtime = await modelCatalogService.GetRuntimeOptionsAsync(agent.StudioModelId, cancellationToken);
-        var chatClient = providerClientFactory.CreateClient(runtime);
-        var selectedToolNames = await agentService.GetSelectedToolNamesAsync(agent.Id, cancellationToken);
-        var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
-        var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
+        var context = await LoadApprovalExecutionContextAsync(approvalId, cancellationToken);
+        var approval = context.Approval;
 
         var toolResult = await ResolveToolResultAsync(
             approval,
             approved,
             comment,
-            toolRegistry,
-            chatSession,
-            conversation.Id.ToString(),
+            context.ToolRegistry,
+            context.ChatSession,
+            context.Conversation.Id.ToString(),
             cancellationToken);
 
-        chatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
+        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
 
-        await foreach (var update in chatSession.ContinueStreamAsync(new ChatOptions
+        await foreach (var update in context.ChatSession.ContinueStreamAsync(new ChatOptions
         {
-            Temperature = agent.Temperature,
-            MaxTokens = agent.MaxTokens
+            Temperature = context.Agent.Temperature,
+            MaxTokens = context.Agent.MaxTokens
         }, cancellationToken))
         {
             switch (update)
@@ -189,8 +159,8 @@ public sealed class ToolApprovalService(
                 case ChatTurnPendingApproval pendingApproval:
                 {
                     var pendingApprovalDto = await CreatePendingApprovalAsync(
-                        conversation,
-                        assistantMessage.Id,
+                        context.Conversation,
+                        context.AssistantMessage.Id,
                         pendingApproval.PendingApprovalRequest,
                         pendingApproval.Response.Message?.TextContent ?? string.Empty,
                         cancellationToken);
@@ -200,12 +170,12 @@ public sealed class ToolApprovalService(
 
                     var waitingContent = $"Command approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
                     await streamingTurnFinalizer.FinalizePendingApprovalAsync(
-                        conversation,
-                        assistantMessage,
+                        context.Conversation,
+                        context.AssistantMessage,
                         response,
                         waitingContent,
                         pendingApprovalDto,
-                        assistantMessage.AppliedSkillName,
+                        context.AssistantMessage.AppliedSkillName,
                         pendingApproval.ToolNames,
                         async ct => await dbContext.SaveChangesAsync(ct),
                         cancellationToken);
@@ -223,14 +193,14 @@ public sealed class ToolApprovalService(
 
                     var finalContent = completed.Response.Message?.TextContent ?? string.Empty;
                     await streamingTurnFinalizer.FinalizeCompletedAsync(
-                        conversation,
-                        assistantMessage,
+                        context.Conversation,
+                        context.AssistantMessage,
                         response,
                         finalContent,
                         completed.Response.FinishReason,
                         completed.Response.Usage?.PromptTokens,
                         completed.Response.Usage?.CompletionTokens,
-                        assistantMessage.AppliedSkillName,
+                        context.AssistantMessage.AppliedSkillName,
                         completed.ToolNames,
                         async ct => await dbContext.SaveChangesAsync(ct),
                         cancellationToken);
@@ -358,6 +328,29 @@ public sealed class ToolApprovalService(
         return toolResult;
     }
 
+    private async Task<ApprovalExecutionContext> LoadApprovalExecutionContextAsync(Guid approvalId, CancellationToken cancellationToken)
+    {
+        var approval = await dbContext.ToolApprovalRequests.FirstOrDefaultAsync(x => x.Id == approvalId, cancellationToken)
+            ?? throw new InvalidOperationException("Tool approval request not found.");
+
+        if (approval.Status != ToolApprovalStatus.Pending)
+        {
+            throw new InvalidOperationException("Tool approval request has already been resolved.");
+        }
+
+        var conversation = await conversationService.GetConversationEntityAsync(approval.ConversationId, cancellationToken);
+        var assistantMessage = conversation.Messages.FirstOrDefault(x => x.Id == approval.AssistantMessageId)
+            ?? throw new InvalidOperationException("Assistant placeholder message not found.");
+        var agent = conversation.AgentDefinition ?? throw new InvalidOperationException("Conversation agent is missing.");
+        var runtime = await modelCatalogService.GetRuntimeOptionsAsync(agent.StudioModelId, cancellationToken);
+        var chatClient = providerClientFactory.CreateClient(runtime);
+        var selectedToolNames = await agentService.GetSelectedToolNamesAsync(agent.Id, cancellationToken);
+        var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
+        var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
+
+        return new ApprovalExecutionContext(approval, conversation, assistantMessage, agent, toolRegistry, chatSession);
+    }
+
     private Task<ChatSession> CreateSessionAsync(
         Conversation conversation,
         ConversationMessage assistantMessage,
@@ -377,5 +370,13 @@ public sealed class ToolApprovalService(
             chatClient,
             BuildResumeHistory(conversation, assistantMessage.Id, approval),
             cancellationToken);
+
+    private sealed record ApprovalExecutionContext(
+        ToolApprovalRequestEntity Approval,
+        Conversation Conversation,
+        ConversationMessage AssistantMessage,
+        AgentDefinition Agent,
+        IToolRegistry ToolRegistry,
+        ChatSession ChatSession);
 
 }
