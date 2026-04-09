@@ -72,46 +72,14 @@ public sealed class ToolApprovalService(
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
         var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
 
-        approval.DecisionComment = comment;
-        approval.DecidedAtUtc = DateTimeOffset.UtcNow;
-
-        ToolResult toolResult;
-        if (approved)
-        {
-            approval.Status = ToolApprovalStatus.Approved;
-            if (!toolRegistry.TryGetTool(approval.ToolName, out var tool) || tool == null)
-            {
-                throw new InvalidOperationException($"Tool '{approval.ToolName}' not found.");
-            }
-
-            var toolCall = new ToolCall { Id = approval.ToolCallId, Name = approval.ToolName, Arguments = approval.ArgumentsJson };
-            toolResult = await tool.ExecuteAsync(new ToolExecutionContext
-            {
-                ToolCall = toolCall,
-                ChatHistory = chatSession.History,
-                ConversationId = conversation.Id.ToString(),
-                ServiceProvider = null
-            }, cancellationToken);
-        }
-        else
-        {
-            approval.Status = ToolApprovalStatus.Denied;
-            toolResult = new ToolResult
-            {
-                ToolCallId = approval.ToolCallId,
-                IsSuccess = false,
-                Status = ToolExecutionStatus.Denied,
-                Content = comment ?? $"Execution of tool '{approval.ToolName}' was denied by the user."
-            };
-        }
-
-        approval.ResultContent = toolResult.Content;
-        if (toolResult.Data is ProcessExecutionResult processResult)
-        {
-            approval.ExitCode = processResult.ExitCode;
-            approval.StandardOutput = processResult.StandardOutput;
-            approval.StandardError = processResult.StandardError;
-        }
+        var toolResult = await ResolveToolResultAsync(
+            approval,
+            approved,
+            comment,
+            toolRegistry,
+            chatSession,
+            conversation.Id.ToString(),
+            cancellationToken);
 
         chatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
         var resumedTurn = await chatSession.ContinueAsync(new ChatOptions
@@ -189,46 +157,14 @@ public sealed class ToolApprovalService(
         var toolRegistry = toolRegistryFactory.CreateRegistry(selectedToolNames);
         var chatSession = await CreateSessionAsync(conversation, assistantMessage, approval, agent, runtime.RuntimeModelId, chatClient, cancellationToken);
 
-        approval.DecisionComment = comment;
-        approval.DecidedAtUtc = DateTimeOffset.UtcNow;
-
-        ToolResult toolResult;
-        if (approved)
-        {
-            approval.Status = ToolApprovalStatus.Approved;
-            if (!toolRegistry.TryGetTool(approval.ToolName, out var tool) || tool == null)
-            {
-                throw new InvalidOperationException($"Tool '{approval.ToolName}' not found.");
-            }
-
-            var toolCall = new ToolCall { Id = approval.ToolCallId, Name = approval.ToolName, Arguments = approval.ArgumentsJson };
-            toolResult = await tool.ExecuteAsync(new ToolExecutionContext
-            {
-                ToolCall = toolCall,
-                ChatHistory = chatSession.History,
-                ConversationId = conversation.Id.ToString(),
-                ServiceProvider = null
-            }, cancellationToken);
-        }
-        else
-        {
-            approval.Status = ToolApprovalStatus.Denied;
-            toolResult = new ToolResult
-            {
-                ToolCallId = approval.ToolCallId,
-                IsSuccess = false,
-                Status = ToolExecutionStatus.Denied,
-                Content = comment ?? $"Execution of tool '{approval.ToolName}' was denied by the user."
-            };
-        }
-
-        approval.ResultContent = toolResult.Content;
-        if (toolResult.Data is ProcessExecutionResult processResult)
-        {
-            approval.ExitCode = processResult.ExitCode;
-            approval.StandardOutput = processResult.StandardOutput;
-            approval.StandardError = processResult.StandardError;
-        }
+        var toolResult = await ResolveToolResultAsync(
+            approval,
+            approved,
+            comment,
+            toolRegistry,
+            chatSession,
+            conversation.Id.ToString(),
+            cancellationToken);
 
         chatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
 
@@ -368,6 +304,59 @@ public sealed class ToolApprovalService(
             entity.RequestedAtUtc,
             entity.DecidedAtUtc,
             entity.CompletedAtUtc);
+
+    private static async Task<ToolResult> ResolveToolResultAsync(
+        ToolApprovalRequestEntity approval,
+        bool approved,
+        string? comment,
+        IToolRegistry toolRegistry,
+        ChatSession chatSession,
+        string conversationId,
+        CancellationToken cancellationToken)
+    {
+        approval.DecisionComment = comment;
+        approval.DecidedAtUtc = DateTimeOffset.UtcNow;
+
+        ToolResult toolResult;
+        if (approved)
+        {
+            approval.Status = ToolApprovalStatus.Approved;
+            if (!toolRegistry.TryGetTool(approval.ToolName, out var tool) || tool == null)
+            {
+                throw new InvalidOperationException($"Tool '{approval.ToolName}' not found.");
+            }
+
+            var toolCall = new ToolCall { Id = approval.ToolCallId, Name = approval.ToolName, Arguments = approval.ArgumentsJson };
+            toolResult = await tool.ExecuteAsync(new ToolExecutionContext
+            {
+                ToolCall = toolCall,
+                ChatHistory = chatSession.History,
+                ConversationId = conversationId,
+                ServiceProvider = null
+            }, cancellationToken);
+        }
+        else
+        {
+            approval.Status = ToolApprovalStatus.Denied;
+            toolResult = new ToolResult
+            {
+                ToolCallId = approval.ToolCallId,
+                IsSuccess = false,
+                Status = ToolExecutionStatus.Denied,
+                Content = comment ?? $"Execution of tool '{approval.ToolName}' was denied by the user."
+            };
+        }
+
+        approval.ResultContent = toolResult.Content;
+        if (toolResult.Data is ProcessExecutionResult processResult)
+        {
+            approval.ExitCode = processResult.ExitCode;
+            approval.StandardOutput = processResult.StandardOutput;
+            approval.StandardError = processResult.StandardError;
+        }
+
+        return toolResult;
+    }
 
     private Task<ChatSession> CreateSessionAsync(
         Conversation conversation,
