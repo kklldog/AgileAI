@@ -27,6 +27,7 @@ import {
   type AgentPayload,
   type ModelPayload,
   type ProviderConnectionPayload,
+  type StreamHandlers,
 } from '../api/studio'
 import type { AgentItem, ConversationItem, MessageItem, ModelItem, Overview, ProviderConnection, SkillItem, ToolApprovalItem, ToolOption } from '../types'
 
@@ -187,6 +188,131 @@ export const useStudioStore = defineStore('studio', {
         [conversationId]: enabled,
       }
     },
+    patchMessage(conversationId: string, messageId: string, patch: Partial<MessageItem>) {
+      const messages = [...(this.messagesByConversation[conversationId] ?? [])]
+      const index = messages.findIndex((item) => item.id === messageId)
+      if (index < 0) {
+        return
+      }
+
+      messages[index] = {
+        ...messages[index],
+        ...patch,
+      }
+      this.messagesByConversation[conversationId] = messages
+    },
+    upsertToolApproval(conversationId: string, approval: ToolApprovalItem) {
+      const approvals = this.toolApprovalsByConversation[conversationId] ?? []
+      const index = approvals.findIndex((item) => item.id === approval.id)
+      if (index >= 0) {
+        const next = [...approvals]
+        next[index] = approval
+        this.toolApprovalsByConversation[conversationId] = next
+        return
+      }
+
+      this.toolApprovalsByConversation[conversationId] = [...approvals, approval]
+    },
+    patchToolApproval(conversationId: string, approvalId: string, patch: Partial<ToolApprovalItem>) {
+      const approvals = [...(this.toolApprovalsByConversation[conversationId] ?? [])]
+      const index = approvals.findIndex((item) => item.id === approvalId)
+      if (index < 0) {
+        return
+      }
+
+      approvals[index] = {
+        ...approvals[index],
+        ...patch,
+      }
+      this.toolApprovalsByConversation[conversationId] = approvals
+    },
+    upsertConversation(conversation: ConversationItem) {
+      const matched = this.conversations.some((item) => item.id === conversation.id)
+      this.conversations = matched
+        ? this.conversations.map((item) => (item.id === conversation.id ? conversation : item))
+        : [conversation, ...this.conversations]
+    },
+    _addOptimisticChatTurn(conversationId: string, content: string) {
+      const existing = this.messagesByConversation[conversationId] ?? []
+      const optimisticUserId = `temp-user-${Date.now()}`
+      const optimisticAssistantId = `temp-assistant-${Date.now()}`
+
+      this.activeConversationId = conversationId
+      this.messagesByConversation[conversationId] = [
+        ...existing,
+        {
+          id: optimisticUserId,
+          conversationId,
+          role: 'User',
+          content,
+          isStreaming: false,
+          createdAtUtc: new Date().toISOString(),
+        },
+        {
+          id: optimisticAssistantId,
+          conversationId,
+          role: 'Assistant',
+          content: '',
+          isStreaming: true,
+          createdAtUtc: new Date().toISOString(),
+        },
+      ]
+
+      return { existing, optimisticUserId, optimisticAssistantId }
+    },
+    _createStreamHandlers(conversationId: string, getAssistantMessageId: () => string): StreamHandlers {
+      return {
+        onDelta: (delta) => {
+          const id = getAssistantMessageId()
+          const current = (this.messagesByConversation[conversationId] ?? []).find((item) => item.id === id)
+          if (!current) {
+            return
+          }
+
+          this.patchMessage(conversationId, id, {
+            content: `${current.content}${delta}`,
+            isStreaming: true,
+          })
+        },
+        onUsage: ({ inputTokens, outputTokens }) => {
+          this.patchMessage(conversationId, getAssistantMessageId(), {
+            inputTokens,
+            outputTokens,
+          })
+        },
+        onCompleted: ({ finishReason }) => {
+          this.patchMessage(conversationId, getAssistantMessageId(), {
+            finishReason: finishReason ?? null,
+            isStreaming: false,
+          })
+        },
+        onFinalMessage: ({ content, finishReason, inputTokens, outputTokens, appliedSkillName, appliedToolNames }) => {
+          this.patchMessage(conversationId, getAssistantMessageId(), {
+            content,
+            finishReason: finishReason ?? null,
+            inputTokens,
+            outputTokens,
+            appliedSkillName: appliedSkillName ?? null,
+            appliedToolNames: appliedToolNames ?? null,
+            isStreaming: false,
+          })
+        },
+        onApprovalRequired: (approval) => {
+          this.upsertToolApproval(conversationId, approval)
+
+          if (this.autoApproveToolCallsByConversation[conversationId]) {
+            void this.resolveToolApprovalAction(approval.id, true, 'Auto-approved for this session.')
+          }
+        },
+        onError: (message) => {
+          this.streamError = message
+          this.patchMessage(conversationId, getAssistantMessageId(), {
+            content: message,
+            isStreaming: false,
+          })
+        },
+      }
+    },
     async resolveToolApprovalAction(approvalId: string, approved: boolean, comment?: string) {
       this.resolvingApprovalIds = [...this.resolvingApprovalIds, approvalId]
       try {
@@ -197,26 +323,11 @@ export const useStudioStore = defineStore('studio', {
         if (!existingApproval) {
           const result = await resolveToolApproval(approvalId, approved, comment)
           const conversationId = result.approval.conversationId
-          const approvals = this.toolApprovalsByConversation[conversationId] ?? []
-          const updatedApprovals = approvals.map((item) =>
-            item.id === approvalId ? result.approval : item,
-          )
-
-          this.toolApprovalsByConversation[conversationId] = result.pendingApproval
-            ? updatedApprovals.some((item) => item.id === result.pendingApproval?.id)
-              ? updatedApprovals.map((item) => item.id === result.pendingApproval?.id ? result.pendingApproval : item)
-              : [...updatedApprovals, result.pendingApproval]
-            : updatedApprovals
-
-          const messages = [...(this.messagesByConversation[conversationId] ?? [])]
-          const index = messages.findIndex((item) => item.id === result.assistantMessage.id)
-          if (index >= 0) {
-            messages[index] = result.assistantMessage
-          } else {
-            messages.push(result.assistantMessage)
+          this.upsertToolApproval(conversationId, result.approval)
+          if (result.pendingApproval) {
+            this.upsertToolApproval(conversationId, result.pendingApproval)
           }
-
-          this.messagesByConversation[conversationId] = messages
+          this.patchMessage(conversationId, result.assistantMessage.id, result.assistantMessage)
           this.conversations = this.conversations.map((item) =>
             item.id === conversationId ? result.conversation : item,
           )
@@ -226,82 +337,36 @@ export const useStudioStore = defineStore('studio', {
 
         const conversationId = existingApproval.conversationId
         const assistantMessageId = existingApproval.assistantMessageId
-        const patchAssistantMessage = (patch: Partial<MessageItem>) => {
-          const messages = [...(this.messagesByConversation[conversationId] ?? [])]
-          const index = messages.findIndex((item) => item.id === assistantMessageId)
-          if (index < 0) {
-            return
-          }
-
-          messages[index] = {
-            ...messages[index],
-            ...patch,
-          }
-          this.messagesByConversation[conversationId] = messages
-        }
-
-        const updateApproval = (approval: ToolApprovalItem) => {
-          const approvals = this.toolApprovalsByConversation[conversationId] ?? []
-          const index = approvals.findIndex((item) => item.id === approval.id)
-          if (index >= 0) {
-            const next = [...approvals]
-            next[index] = approval
-            this.toolApprovalsByConversation[conversationId] = next
-          } else {
-            this.toolApprovalsByConversation[conversationId] = [...approvals, approval]
-          }
-        }
-
-        patchAssistantMessage({ isStreaming: true, content: '' })
-
-        await resolveToolApprovalStream(approvalId, approved, comment, {
-          onDelta: (delta) => {
-            const current = (this.messagesByConversation[conversationId] ?? []).find((item) => item.id === assistantMessageId)
-            patchAssistantMessage({
-              content: `${current?.content ?? ''}${delta}`,
-              isStreaming: true,
-            })
-          },
-          onUsage: ({ inputTokens, outputTokens }) => {
-            patchAssistantMessage({
-              inputTokens,
-              outputTokens,
-            })
-          },
-          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens, appliedSkillName, appliedToolNames }) => {
-            patchAssistantMessage({
-              content,
-              finishReason: finishReason ?? null,
-              inputTokens,
-              outputTokens,
-              appliedSkillName: appliedSkillName ?? null,
-              appliedToolNames: appliedToolNames ?? null,
-              isStreaming: false,
-            })
-          },
-          onCompleted: ({ finishReason }) => {
-            patchAssistantMessage({
-              finishReason: finishReason ?? null,
-              isStreaming: false,
-            })
-          },
-          onApprovalRequired: (approval) => {
-            updateApproval(approval)
-            if (this.autoApproveToolCallsByConversation[conversationId]) {
-              void this.resolveToolApprovalAction(approval.id, true, 'Auto-approved for this session.')
-            }
-          },
-          onError: (message) => {
-            this.streamError = message
-            patchAssistantMessage({
-              content: message,
-              isStreaming: false,
-            })
-          },
+        const previousMessages = [...(this.messagesByConversation[conversationId] ?? [])]
+        const previousApprovals = [...(this.toolApprovalsByConversation[conversationId] ?? [])]
+        this.patchMessage(conversationId, assistantMessageId, { isStreaming: true, content: '' })
+        this.patchToolApproval(conversationId, approvalId, {
+          decisionComment: comment ?? null,
+          status: approved ? 'Approved' : 'Denied',
         })
 
-        const refreshedApprovals = await getConversationToolApprovals(conversationId)
-        const refreshedMessages = await getMessages(conversationId)
+        try {
+          await resolveToolApprovalStream(approvalId, approved, comment, this._createStreamHandlers(conversationId, () => assistantMessageId))
+        } catch (error) {
+          try {
+            const [refreshedApprovals, refreshedMessages] = await Promise.all([
+              getConversationToolApprovals(conversationId),
+              getMessages(conversationId),
+            ])
+            this.toolApprovalsByConversation[conversationId] = refreshedApprovals
+            this.messagesByConversation[conversationId] = refreshedMessages
+          } catch {
+            this.toolApprovalsByConversation[conversationId] = previousApprovals
+            this.messagesByConversation[conversationId] = previousMessages
+          }
+
+          throw error
+        }
+
+        const [refreshedApprovals, refreshedMessages] = await Promise.all([
+          getConversationToolApprovals(conversationId),
+          getMessages(conversationId),
+        ])
         this.toolApprovalsByConversation[conversationId] = refreshedApprovals
         this.messagesByConversation[conversationId] = refreshedMessages
         this.conversations = await getConversations()
@@ -313,173 +378,42 @@ export const useStudioStore = defineStore('studio', {
     },
     async sendMessage(conversationId: string, content: string) {
       const normalizedContent = content.trim()
-      const existing = this.messagesByConversation[conversationId] ?? []
-      const optimisticUserId = `temp-user-${Date.now()}`
-      const optimisticAssistantId = `temp-assistant-${Date.now()}`
+      const { existing } = this._addOptimisticChatTurn(conversationId, normalizedContent)
 
-      this.activeConversationId = conversationId
-      this.messagesByConversation[conversationId] = [
-        ...existing,
-        {
-          id: optimisticUserId,
-          conversationId,
-          role: 'User',
-          content: normalizedContent,
-          isStreaming: false,
-          createdAtUtc: new Date().toISOString(),
-        },
-        {
-          id: optimisticAssistantId,
-          conversationId,
-          role: 'Assistant',
-          content: '',
-          isStreaming: true,
-          createdAtUtc: new Date().toISOString(),
-        },
-      ]
-
-      const result = await sendMessage(conversationId, content)
-      this.messagesByConversation[conversationId] = [...existing, result.userMessage, result.assistantMessage]
-      this.conversations = this.conversations.map((item) =>
-        item.id === conversationId ? result.conversation : item,
-      )
-      await this.refreshOverview()
-      return result
+      try {
+        const result = await sendMessage(conversationId, normalizedContent)
+        this.messagesByConversation[conversationId] = [...existing, result.userMessage, result.assistantMessage]
+        this.upsertConversation(result.conversation)
+        await this.refreshOverview()
+        return result
+      } catch (error) {
+        this.messagesByConversation[conversationId] = existing
+        throw error
+      }
     },
     async streamMessage(conversationId: string, content: string) {
       const normalizedContent = content.trim()
-      const existing = this.messagesByConversation[conversationId] ?? []
-      const optimisticUserId = `temp-user-${Date.now()}`
-      const optimisticAssistantId = `temp-assistant-${Date.now()}`
-
-      this.activeConversationId = conversationId
-      this.messagesByConversation[conversationId] = [
-        ...existing,
-        {
-          id: optimisticUserId,
-          conversationId,
-          role: 'User',
-          content: normalizedContent,
-          isStreaming: false,
-          createdAtUtc: new Date().toISOString(),
-        },
-        {
-          id: optimisticAssistantId,
-          conversationId,
-          role: 'Assistant',
-          content: '',
-          isStreaming: true,
-          createdAtUtc: new Date().toISOString(),
-        },
-      ]
+      const { existing, optimisticAssistantId } = this._addOptimisticChatTurn(conversationId, normalizedContent)
 
       this.isStreaming = true
       this.streamError = ''
+      let currentAssistantMessageId = optimisticAssistantId
 
       try {
         await streamMessage(conversationId, normalizedContent, {
           onStart: ({ conversation, userMessage, assistantMessage }) => {
             this.messagesByConversation[conversationId] = [...existing, userMessage, assistantMessage]
-            const matched = this.conversations.some((item) => item.id === conversationId)
-            this.conversations = matched
-              ? this.conversations.map((item) => (item.id === conversationId ? conversation : item))
-              : [conversation, ...this.conversations]
+            currentAssistantMessageId = assistantMessage.id
+            this.upsertConversation(conversation)
           },
-          onDelta: (delta) => {
-            const list = [...(this.messagesByConversation[conversationId] ?? [])]
-            const last = list.at(-1)
-            if (!last) {
-              return
-            }
-
-            list[list.length - 1] = {
-              ...last,
-              content: `${last.content}${delta}`,
-              isStreaming: true,
-            }
-            this.messagesByConversation[conversationId] = list
-          },
-          onUsage: ({ inputTokens, outputTokens }) => {
-            const list = [...(this.messagesByConversation[conversationId] ?? [])]
-            const last = list.at(-1)
-            if (!last) {
-              return
-            }
-
-            list[list.length - 1] = {
-              ...last,
-              inputTokens: inputTokens ?? last.inputTokens,
-              outputTokens: outputTokens ?? last.outputTokens,
-            }
-            this.messagesByConversation[conversationId] = list
-          },
-          onCompleted: ({ finishReason }) => {
-            const list = [...(this.messagesByConversation[conversationId] ?? [])]
-            const last = list.at(-1)
-            if (!last) {
-              return
-            }
-
-            list[list.length - 1] = {
-              ...last,
-              finishReason: finishReason ?? last.finishReason,
-              isStreaming: false,
-            }
-            this.messagesByConversation[conversationId] = list
-          },
-          onFinalMessage: ({ content, finishReason, inputTokens, outputTokens, appliedSkillName, appliedToolNames }) => {
-            const list = [...(this.messagesByConversation[conversationId] ?? [])]
-            const last = list.at(-1)
-            if (!last) {
-              return
-            }
-
-            list[list.length - 1] = {
-              ...last,
-              content,
-              finishReason: finishReason ?? last.finishReason,
-              inputTokens: inputTokens ?? last.inputTokens,
-              outputTokens: outputTokens ?? last.outputTokens,
-              appliedSkillName: appliedSkillName ?? last.appliedSkillName ?? null,
-              appliedToolNames: appliedToolNames ?? last.appliedToolNames ?? null,
-              isStreaming: false,
-            }
-            this.messagesByConversation[conversationId] = list
-          },
-          onApprovalRequired: (approval) => {
-            const approvals = this.toolApprovalsByConversation[conversationId] ?? []
-            const index = approvals.findIndex((item) => item.id === approval.id)
-            if (index >= 0) {
-              const next = [...approvals]
-              next[index] = approval
-              this.toolApprovalsByConversation[conversationId] = next
-            } else {
-              this.toolApprovalsByConversation[conversationId] = [...approvals, approval]
-            }
-
-            if (this.autoApproveToolCallsByConversation[conversationId]) {
-              void this.resolveToolApprovalAction(approval.id, true, 'Auto-approved for this session.')
-            }
-          },
-          onError: (message) => {
-            this.streamError = message
-            const list = [...(this.messagesByConversation[conversationId] ?? [])]
-            const last = list.at(-1)
-            if (!last) {
-              return
-            }
-
-            list[list.length - 1] = {
-              ...last,
-              content: message,
-              isStreaming: false,
-            }
-            this.messagesByConversation[conversationId] = list
-          },
+          ...this._createStreamHandlers(conversationId, () => currentAssistantMessageId),
         })
 
         await this.refreshOverview()
         this.conversations = await getConversations()
+      } catch (error) {
+        this.messagesByConversation[conversationId] = existing
+        throw error
       } finally {
         this.isStreaming = false
       }
