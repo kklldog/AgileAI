@@ -23,6 +23,7 @@ public sealed class WebFetchTool(HttpClient httpClient) : ITool
     {
         var request = JsonSerializer.Deserialize<WebFetchRequest>(context.ToolCall.Arguments, JsonOptions())
             ?? throw new InvalidOperationException("Invalid web_fetch arguments.");
+        var limit = NormalizeLimit(request.MaxCharacters);
 
         if (string.IsNullOrWhiteSpace(request.Url) || !Uri.TryCreate(request.Url, UriKind.Absolute, out var uri))
         {
@@ -34,39 +35,59 @@ public sealed class WebFetchTool(HttpClient httpClient) : ITool
             throw new InvalidOperationException("web_fetch only supports http and https URLs.");
         }
 
-        using var response = await httpClient.GetAsync(uri, cancellationToken);
-        var content = await response.Content.ReadAsStringAsync(cancellationToken);
-
-        if (!response.IsSuccessStatusCode)
+        HttpResponseMessage response;
+        string content;
+        try
         {
+            response = await httpClient.GetAsync(uri, cancellationToken);
+            content = await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TaskCanceledException ex)
+        {
+            return CreateTransportFailureResult(context.ToolCall.Id, uri, "Request timed out.", limit, ex.Message);
+        }
+        catch (HttpRequestException ex)
+        {
+            return CreateTransportFailureResult(context.ToolCall.Id, uri, "Network request failed.", limit, ex.Message);
+        }
+
+        using (response)
+        {
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ToolResult
+                {
+                    ToolCallId = context.ToolCall.Id,
+                    IsSuccess = false,
+                    Status = ToolExecutionStatus.Failed,
+                    Content = JsonSerializer.Serialize(new
+                    {
+                        url = uri.ToString(),
+                        statusCode = (int)response.StatusCode,
+                        reasonPhrase = response.ReasonPhrase,
+                        content = Truncate(content, limit)
+                    })
+                };
+            }
+
             return new ToolResult
             {
                 ToolCallId = context.ToolCall.Id,
-                IsSuccess = false,
-                Status = ToolExecutionStatus.Failed,
+                IsSuccess = true,
+                Status = ToolExecutionStatus.Completed,
                 Content = JsonSerializer.Serialize(new
                 {
                     url = uri.ToString(),
                     statusCode = (int)response.StatusCode,
-                    reasonPhrase = response.ReasonPhrase,
-                    content = Truncate(content, NormalizeLimit(request.MaxCharacters))
+                    contentType = response.Content.Headers.ContentType?.ToString(),
+                    content = Truncate(content, limit)
                 })
             };
         }
-
-        return new ToolResult
-        {
-            ToolCallId = context.ToolCall.Id,
-            IsSuccess = true,
-            Status = ToolExecutionStatus.Completed,
-            Content = JsonSerializer.Serialize(new
-            {
-                url = uri.ToString(),
-                statusCode = (int)response.StatusCode,
-                contentType = response.Content.Headers.ContentType?.ToString(),
-                content = Truncate(content, NormalizeLimit(request.MaxCharacters))
-            })
-        };
     }
 
     private static int NormalizeLimit(int? requested)
@@ -81,6 +102,20 @@ public sealed class WebFetchTool(HttpClient httpClient) : ITool
 
         return $"{content[..limit]}\n\n[Output truncated to {limit} characters]";
     }
+
+    private static ToolResult CreateTransportFailureResult(string toolCallId, Uri uri, string error, int limit, string? detail)
+        => new()
+        {
+            ToolCallId = toolCallId,
+            IsSuccess = false,
+            Status = ToolExecutionStatus.Failed,
+            Content = JsonSerializer.Serialize(new
+            {
+                url = uri.ToString(),
+                error,
+                content = Truncate(detail ?? error, limit)
+            })
+        };
 
     private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
 

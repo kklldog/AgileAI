@@ -67,6 +67,54 @@ public class WebFetchToolTests
         Assert.Equal("web_fetch only supports http and https URLs.", error.Message);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WithTransportFailure_ShouldReturnFailedResult()
+    {
+        var tool = CreateTool((request, ct) => throw new HttpRequestException("connection reset"));
+
+        var result = await tool.ExecuteAsync(CreateContext("{\"url\":\"https://example.com\"}"));
+        using var payload = JsonDocument.Parse(result.Content);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ToolExecutionStatus.Failed, result.Status);
+        Assert.Equal("https://example.com/", payload.RootElement.GetProperty("url").GetString());
+        Assert.Equal("Network request failed.", payload.RootElement.GetProperty("error").GetString());
+        Assert.Contains("connection reset", payload.RootElement.GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithTimeout_ShouldReturnFailedResult()
+    {
+        var tool = CreateTool((request, ct) => throw new TaskCanceledException("request timeout"));
+
+        var result = await tool.ExecuteAsync(CreateContext("{\"url\":\"https://example.com\"}"));
+        using var payload = JsonDocument.Parse(result.Content);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ToolExecutionStatus.Failed, result.Status);
+        Assert.Equal("Request timed out.", payload.RootElement.GetProperty("error").GetString());
+        Assert.Contains("request timeout", payload.RootElement.GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithCallerCancellation_ShouldPropagateCancellation()
+    {
+        var tool = CreateTool(async (request, ct) =>
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("unreachable")
+            };
+        });
+
+        using var cancellationTokenSource = new CancellationTokenSource();
+        await cancellationTokenSource.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            tool.ExecuteAsync(CreateContext("{\"url\":\"https://example.com\"}"), cancellationTokenSource.Token));
+    }
+
     private static WebFetchTool CreateTool(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handler)
         => new(new HttpClient(new FakeHttpMessageHandler(handler)));
 
