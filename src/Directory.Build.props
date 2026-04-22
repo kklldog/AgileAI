@@ -1,0 +1,36 @@
+<Project>
+
+  <PropertyGroup>
+    <IsAgileAISdkPackage Condition="
+      '$(MSBuildProjectName)' == 'AgileAI.Core' or
+      '$(MSBuildProjectName)' == 'AgileAI.Abstractions' or
+      '$(MSBuildProjectName)' == 'AgileAI.Extensions.FileSystem' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAI' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAICompatible' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.AzureOpenAI' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAIResponses' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.Gemini' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.Claude'">true</IsAgileAISdkPackage>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(IsAgileAISdkPackage)' == 'true'">
+    <IsPackable>true</IsPackable>
+    <AgileAIPackageVersionPrefix>0.1</AgileAIPackageVersionPrefix>
+    <VersionPrefix Condition="'$(VersionPrefix)' == ''">$(AgileAIPackageVersionPrefix)</VersionPrefix>
+    <Version Condition="'$(Version)' == '' and '$(PackageVersion)' == ''">$(VersionPrefix).0</Version>
+    <PackageId Condition="'$(PackageId)' == ''">$(MSBuildProjectName)</PackageId>
+    <Title Condition="'$(Title)' == ''">$(PackageId)</Title>
+    <Authors Condition="'$(Authors)' == ''">AgileAI contributors</Authors>
+    <PackageTags Condition="'$(PackageTags)' == ''">ai;agents;llm;sdk</PackageTags>
+    <PackageLicenseFile Condition="'$(PackageLicenseFile)' == ''">LICENSE</PackageLicenseFile>
+    <RepositoryUrl Condition="'$(RepositoryUrl)' == ''">https://github.com/kklldog/AgileAI</RepositoryUrl>
+    <RepositoryType Condition="'$(RepositoryType)' == ''">git</RepositoryType>
+    <PackageProjectUrl Condition="'$(PackageProjectUrl)' == ''">https://github.com/kklldog/AgileAI</PackageProjectUrl>
+    <PackageRequireLicenseAcceptance Condition="'$(PackageRequireLicenseAcceptance)' == ''">false</PackageRequireLicenseAcceptance>
+    <PublishRepositoryUrl Condition="'$(PublishRepositoryUrl)' == ''">true</PublishRepositoryUrl>
+    <IncludeSymbols Condition="'$(IncludeSymbols)' == ''">false</IncludeSymbols>
+    <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

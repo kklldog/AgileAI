@@ -1,0 +1,20 @@
+<Project>
+
+  <PropertyGroup>
+    <IsAgileAISdkPackage Condition="
+      '$(MSBuildProjectName)' == 'AgileAI.Core' or
+      '$(MSBuildProjectName)' == 'AgileAI.Abstractions' or
+      '$(MSBuildProjectName)' == 'AgileAI.Extensions.FileSystem' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAI' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAICompatible' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.AzureOpenAI' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.OpenAIResponses' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.Gemini' or
+      '$(MSBuildProjectName)' == 'AgileAI.Providers.Claude'">true</IsAgileAISdkPackage>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsAgileAISdkPackage)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)..\LICENSE" Pack="true" PackagePath="\" Link="LICENSE" />
+  </ItemGroup>
+
+</Project>
