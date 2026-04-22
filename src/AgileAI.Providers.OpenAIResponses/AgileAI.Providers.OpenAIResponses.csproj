@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>OpenAI Responses API provider integration for AgileAI chat and agent runtimes.</Description>
   </PropertyGroup>
 
   <ItemGroup>

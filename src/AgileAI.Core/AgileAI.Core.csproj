@@ -4,20 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.1.0</Version>
-    <PackageId>AgileAI.Core</PackageId>
-    <Title>AgileAI.Core</Title>
     <Description>Core runtime primitives, tool execution, sessions, middleware, and local skill orchestration for AgileAI.</Description>
-    <Authors>AgileAI contributors</Authors>
     <PackageTags>ai;agents;llm;tools;runtime;middleware</PackageTags>
     <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
-    <RepositoryUrl>https://github.com/kklldog/AgileAI</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PackageProjectUrl>https://github.com/kklldog/AgileAI</PackageProjectUrl>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <IncludeSymbols>false</IncludeSymbols>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,7 +22,5 @@
 
   <ItemGroup>
     <None Include="PACKAGE_README.md" Pack="true" PackagePath="\" />
-    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Link="LICENSE" />
   </ItemGroup>
-
 </Project>

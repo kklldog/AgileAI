@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>File system tools and safe workspace access helpers for AgileAI agents and local runtimes.</Description>
   </PropertyGroup>
 
   <ItemGroup>

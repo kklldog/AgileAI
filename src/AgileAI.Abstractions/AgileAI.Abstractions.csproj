@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <Description>Shared abstractions for agents, tools, chat messages, middleware, and execution contracts in AgileAI.</Description>
   </PropertyGroup>
 
 </Project>
