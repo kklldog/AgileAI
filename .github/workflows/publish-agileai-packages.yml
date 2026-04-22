@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - '.github/workflows/publish-agileai-packages.yml'
+      - 'src/Directory.Build.props'
+      - 'src/Directory.Build.targets'
       - 'src/AgileAI.Abstractions/**'
       - 'src/AgileAI.Extensions.FileSystem/**'
       - 'src/AgileAI.Providers.OpenAI/**'
@@ -15,37 +17,68 @@ on:
       - 'src/AgileAI.Providers.Gemini/**'
       - 'src/AgileAI.Providers.Claude/**'
       - 'src/AgileAI.Core/**'
+      - 'README.md'
       - 'LICENSE'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: publish-agileai-packages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  publish:
+  determine_version:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        package:
-          - package_id: AgileAI.Core
-            csproj: src/AgileAI.Core/AgileAI.Core.csproj
-          - package_id: AgileAI.Abstractions
-            csproj: src/AgileAI.Abstractions/AgileAI.Abstractions.csproj
-          - package_id: AgileAI.Extensions.FileSystem
-            csproj: src/AgileAI.Extensions.FileSystem/AgileAI.Extensions.FileSystem.csproj
-          - package_id: AgileAI.Providers.OpenAI
-            csproj: src/AgileAI.Providers.OpenAI/AgileAI.Providers.OpenAI.csproj
-          - package_id: AgileAI.Providers.OpenAICompatible
-            csproj: src/AgileAI.Providers.OpenAICompatible/AgileAI.Providers.OpenAICompatible.csproj
-          - package_id: AgileAI.Providers.AzureOpenAI
-            csproj: src/AgileAI.Providers.AzureOpenAI/AgileAI.Providers.AzureOpenAI.csproj
-          - package_id: AgileAI.Providers.OpenAIResponses
-            csproj: src/AgileAI.Providers.OpenAIResponses/AgileAI.Providers.OpenAIResponses.csproj
-          - package_id: AgileAI.Providers.Gemini
-            csproj: src/AgileAI.Providers.Gemini/AgileAI.Providers.Gemini.csproj
-          - package_id: AgileAI.Providers.Claude
-            csproj: src/AgileAI.Providers.Claude/AgileAI.Providers.Claude.csproj
+    outputs:
+      package_version: ${{ steps.version.outputs.package_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restrict manual publish target
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Manual package publishing is only supported from refs/heads/main." >&2
+          exit 1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine unified package version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version_prefix="$(dotnet msbuild src/AgileAI.Core/AgileAI.Core.csproj -nologo -getProperty:AgileAIPackageVersionPrefix | tr -d '\r\n')"
+
+          if [[ -z "$version_prefix" ]]; then
+            echo "Unable to resolve AgileAIPackageVersionPrefix." >&2
+            exit 1
+          fi
+
+          commit_count="$(git rev-list --count HEAD | tr -d '\r\n')"
+
+          if [[ -z "$commit_count" ]]; then
+            echo "Unable to resolve git commit count for package versioning." >&2
+            exit 1
+          fi
+
+          package_version="${version_prefix}.${commit_count}"
+
+          echo "package_version=$package_version" >> "$GITHUB_OUTPUT"
+          echo "Resolved unified package version: $package_version"
+
+  publish:
+    needs: determine_version
+    runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
@@ -58,69 +91,74 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Read package version
-        id: package_version
-        shell: bash
+      - name: Restrict manual publish target
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
         run: |
-          set -euo pipefail
+          echo "Manual package publishing is only supported from refs/heads/main." >&2
+          exit 1
 
-          csproj="${{ matrix.package.csproj }}"
-          current_version="$(grep -oPm1 '(?<=<Version>)[^<]+' "$csproj" || true)"
-
-          if [[ -z "$current_version" ]]; then
-            current_version="$(dotnet msbuild "$csproj" -nologo -getProperty:Version | tr -d '\r\n')"
-          fi
-
-          if [[ -z "$current_version" ]]; then
-            echo "$csproj is missing a resolvable package version." >&2
-            exit 1
-          fi
-
-          echo "current_version=$current_version" >> "$GITHUB_OUTPUT"
-          echo "Resolved ${{ matrix.package.package_id }} version: $current_version"
-
-      - name: Check if version already exists on NuGet
-        id: nuget_check
+      - name: Publish SDK packages sequentially
         shell: bash
-        run: |
-          set -euo pipefail
-
-          package_id="${{ matrix.package.package_id }}"
-          package_id_lower="$(printf '%s' "$package_id" | tr '[:upper:]' '[:lower:]')"
-          version="${{ steps.package_version.outputs.current_version }}"
-          metadata_url="https://api.nuget.org/v3/registration5-gz-semver2/${package_id_lower}/index.json"
-          http_status="$(curl --silent --show-error --location --output nuget-metadata.json --write-out '%{http_code}' "$metadata_url")"
-
-          if [[ "$http_status" == "404" ]]; then
-            echo "version_exists=false" >> "$GITHUB_OUTPUT"
-            echo "$package_id not found on NuGet; continuing first publish."
-          elif [[ "$http_status" == "200" ]]; then
-            if grep -q '"version"[[:space:]]*:[[:space:]]*"'"$version"'"' nuget-metadata.json; then
-              echo "version_exists=true" >> "$GITHUB_OUTPUT"
-              echo "$package_id $version already exists on NuGet; skipping publish."
-            else
-              echo "version_exists=false" >> "$GITHUB_OUTPUT"
-              echo "$package_id exists on NuGet but version $version does not; continuing publish."
-            fi
-          else
-            echo "Unexpected HTTP status $http_status while checking $package_id on NuGet." >&2
-            exit 1
-          fi
-
-      - name: Restore dependencies
-        if: steps.nuget_check.outputs.version_exists != 'true'
-        run: dotnet restore "${{ matrix.package.csproj }}"
-
-      - name: Pack package
-        if: steps.nuget_check.outputs.version_exists != 'true'
-        run: dotnet pack "${{ matrix.package.csproj }}" -c Release -p:PackageVersion="${{ steps.package_version.outputs.current_version }}" -o "${{ github.workspace }}/artifacts/nuget"
-
-      - name: Publish package to NuGet
-        if: steps.nuget_check.outputs.version_exists != 'true'
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
-          dotnet nuget push "${{ github.workspace }}/artifacts/nuget/${{ matrix.package.package_id }}.${{ steps.package_version.outputs.current_version }}.nupkg" \
-            --source "https://api.nuget.org/v3/index.json" \
-            --api-key "$NUGET_API_KEY" \
-            --skip-duplicate
+          set -euo pipefail
+
+          version="${{ needs.determine_version.outputs.package_version }}"
+          declare -a packages=(
+            "AgileAI.Core|src/AgileAI.Core/AgileAI.Core.csproj"
+            "AgileAI.Abstractions|src/AgileAI.Abstractions/AgileAI.Abstractions.csproj"
+            "AgileAI.Extensions.FileSystem|src/AgileAI.Extensions.FileSystem/AgileAI.Extensions.FileSystem.csproj"
+            "AgileAI.Providers.OpenAI|src/AgileAI.Providers.OpenAI/AgileAI.Providers.OpenAI.csproj"
+            "AgileAI.Providers.OpenAICompatible|src/AgileAI.Providers.OpenAICompatible/AgileAI.Providers.OpenAICompatible.csproj"
+            "AgileAI.Providers.AzureOpenAI|src/AgileAI.Providers.AzureOpenAI/AgileAI.Providers.AzureOpenAI.csproj"
+            "AgileAI.Providers.OpenAIResponses|src/AgileAI.Providers.OpenAIResponses/AgileAI.Providers.OpenAIResponses.csproj"
+            "AgileAI.Providers.Gemini|src/AgileAI.Providers.Gemini/AgileAI.Providers.Gemini.csproj"
+            "AgileAI.Providers.Claude|src/AgileAI.Providers.Claude/AgileAI.Providers.Claude.csproj"
+          )
+
+          mkdir -p "${{ github.workspace }}/artifacts/nuget"
+
+          all_exist=true
+          for entry in "${packages[@]}"; do
+            package_id="${entry%%|*}"
+            package_id_lower="$(printf '%s' "$package_id" | tr '[:upper:]' '[:lower:]')"
+            metadata_url="https://api.nuget.org/v3/registration5-gz-semver2/${package_id_lower}/index.json"
+            http_status="$(curl --silent --show-error --location --output nuget-metadata.json --write-out '%{http_code}' "$metadata_url")"
+
+            if [[ "$http_status" == "404" ]]; then
+              echo "$package_id not found on NuGet; package set requires publishing."
+              all_exist=false
+              break
+            fi
+
+            if [[ "$http_status" != "200" ]]; then
+              echo "Unexpected HTTP status $http_status while checking $package_id." >&2
+              exit 1
+            fi
+
+            if grep -q '"version"[[:space:]]*:[[:space:]]*"'"$version"'"' nuget-metadata.json; then
+              echo "$package_id $version already exists on NuGet."
+            else
+              echo "$package_id is missing version $version and package set must be published."
+              all_exist=false
+              break
+            fi
+          done
+
+          if [[ "$all_exist" == true ]]; then
+            echo "All SDK packages already have version $version on NuGet; skipping publish."
+            exit 0
+          fi
+
+          for entry in "${packages[@]}"; do
+            package_id="${entry%%|*}"
+            csproj="${entry##*|}"
+
+            dotnet restore "$csproj"
+            dotnet pack "$csproj" -c Release -p:PackageVersion="$version" -o "${{ github.workspace }}/artifacts/nuget"
+            dotnet nuget push "${{ github.workspace }}/artifacts/nuget/${package_id}.${version}.nupkg" \
+              --source "https://api.nuget.org/v3/index.json" \
+              --api-key "$NUGET_API_KEY" \
+              --skip-duplicate
+          done
