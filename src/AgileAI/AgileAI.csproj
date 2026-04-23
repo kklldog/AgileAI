@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Description>Starter metapackage for AgileAI with the shared abstractions and core runtime.</Description>
+    <PackageTags>ai;agents;llm;sdk;starter</PackageTags>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <PackageReadmeFile>PACKAGE_README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgileAI.Abstractions\AgileAI.Abstractions.csproj" />
+    <ProjectReference Include="..\AgileAI.Core\AgileAI.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE_README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
