@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <IsAgileAISdkPackage Condition="
+      '$(MSBuildProjectName)' == 'AgileAI' or
       '$(MSBuildProjectName)' == 'AgileAI.Core' or
       '$(MSBuildProjectName)' == 'AgileAI.Abstractions' or
       '$(MSBuildProjectName)' == 'AgileAI.Extensions.FileSystem' or

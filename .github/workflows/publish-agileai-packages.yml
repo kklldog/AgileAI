@@ -8,6 +8,7 @@ on:
       - '.github/workflows/publish-agileai-packages.yml'
       - 'src/Directory.Build.props'
       - 'src/Directory.Build.targets'
+      - 'src/AgileAI/**'
       - 'src/AgileAI.Abstractions/**'
       - 'src/AgileAI.Extensions.FileSystem/**'
       - 'src/AgileAI.Providers.OpenAI/**'
@@ -106,6 +107,7 @@ jobs:
 
           version="${{ needs.determine_version.outputs.package_version }}"
           declare -a packages=(
+            "AgileAI|src/AgileAI/AgileAI.csproj"
             "AgileAI.Core|src/AgileAI.Core/AgileAI.Core.csproj"
             "AgileAI.Abstractions|src/AgileAI.Abstractions/AgileAI.Abstractions.csproj"
             "AgileAI.Extensions.FileSystem|src/AgileAI.Extensions.FileSystem/AgileAI.Extensions.FileSystem.csproj"
