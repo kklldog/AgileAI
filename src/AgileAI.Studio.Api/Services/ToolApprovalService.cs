@@ -70,7 +70,8 @@ public sealed class ToolApprovalService(
         var resumedTurn = await context.ChatSession.ContinueAsync(new ChatOptions
         {
             Temperature = context.Agent.Temperature,
-            MaxTokens = context.Agent.MaxTokens
+            MaxTokens = context.Agent.MaxTokens,
+            ThinkingIntensity = context.Agent.ThinkingIntensity
         }, cancellationToken);
 
         if (!resumedTurn.Response.IsSuccess)
@@ -141,7 +142,8 @@ public sealed class ToolApprovalService(
         await foreach (var update in context.ChatSession.ContinueStreamAsync(new ChatOptions
         {
             Temperature = context.Agent.Temperature,
-            MaxTokens = context.Agent.MaxTokens
+            MaxTokens = context.Agent.MaxTokens,
+            ThinkingIntensity = context.Agent.ThinkingIntensity
         }, cancellationToken))
         {
             switch (update)

@@ -10,6 +10,7 @@ public class AgentDefinition
     public string SystemPrompt { get; set; } = string.Empty;
     public double Temperature { get; set; } = 0.6d;
     public int MaxTokens { get; set; } = 2048;
+    public string? ThinkingIntensity { get; set; }
     public bool EnableSkills { get; set; }
     public bool IsPinned { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }

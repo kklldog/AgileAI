@@ -47,6 +47,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
             SystemPrompt = request.SystemPrompt.Trim(),
             Temperature = request.Temperature,
             MaxTokens = request.MaxTokens,
+            ThinkingIntensity = NormalizeThinkingIntensity(request.ThinkingIntensity, model),
             EnableSkills = request.EnableSkills,
             IsPinned = request.IsPinned,
             CreatedAtUtc = now,
@@ -75,6 +76,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         entity.SystemPrompt = request.SystemPrompt.Trim();
         entity.Temperature = request.Temperature;
         entity.MaxTokens = request.MaxTokens;
+        entity.ThinkingIntensity = NormalizeThinkingIntensity(request.ThinkingIntensity, model);
         entity.EnableSkills = request.EnableSkills;
         entity.IsPinned = request.IsPinned;
         entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
@@ -140,6 +142,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
             entity.SystemPrompt,
             entity.Temperature,
             entity.MaxTokens,
+            entity.ThinkingIntensity,
             entity.EnableSkills,
             entity.IsPinned,
             selectedToolNames,
@@ -251,5 +254,23 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         {
             throw new InvalidOperationException("Max tokens must be greater than zero.");
         }
+    }
+
+    private static string? NormalizeThinkingIntensity(string? value, StudioModel model)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim();
+        var supported = ModelCatalogService.ParseThinkingIntensities(model.ThinkingIntensitiesJson);
+        if (supported.Count == 0)
+        {
+            return null;
+        }
+
+        return supported.FirstOrDefault(item => string.Equals(item, normalized, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("Selected thinking intensity is not supported by the model.");
     }
 }
