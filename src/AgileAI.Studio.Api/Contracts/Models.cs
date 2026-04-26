@@ -22,6 +22,7 @@ public record ModelRequest(
     bool SupportsStreaming,
     bool SupportsTools,
     bool SupportsVision,
+    IReadOnlyList<string>? ThinkingIntensities,
     bool IsEnabled);
 
 public record AgentRequestDto(
@@ -31,6 +32,7 @@ public record AgentRequestDto(
     string SystemPrompt,
     double Temperature,
     int MaxTokens,
+    string? ThinkingIntensity,
     bool EnableSkills,
     bool IsPinned,
     IReadOnlyList<string>? SelectedToolNames,
@@ -70,6 +72,7 @@ public record ModelDto(
     bool SupportsStreaming,
     bool SupportsTools,
     bool SupportsVision,
+    IReadOnlyList<string> ThinkingIntensities,
     bool IsEnabled,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset UpdatedAtUtc);
@@ -82,6 +85,7 @@ public record AgentDto(
     string SystemPrompt,
     double Temperature,
     int MaxTokens,
+    string? ThinkingIntensity,
     bool EnableSkills,
     bool IsPinned,
     IReadOnlyList<string> SelectedToolNames,

@@ -10,6 +10,7 @@ public class StudioModel
     public bool SupportsStreaming { get; set; } = true;
     public bool SupportsTools { get; set; } = true;
     public bool SupportsVision { get; set; }
+    public string ThinkingIntensitiesJson { get; set; } = "[]";
     public bool IsEnabled { get; set; } = true;
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }

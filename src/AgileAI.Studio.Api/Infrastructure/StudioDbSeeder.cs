@@ -30,6 +30,14 @@ public static class StudioDbSeeder
             "ALTER TABLE \"Messages\" ADD COLUMN \"AppliedToolNamesJson\" TEXT NULL",
             cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
 
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Models\" ADD COLUMN \"ThinkingIntensitiesJson\" TEXT NOT NULL DEFAULT '[]'",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"Agents\" ADD COLUMN \"ThinkingIntensity\" TEXT NULL",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
         if (await dbContext.ProviderConnections.AnyAsync(cancellationToken))
         {
             return;
@@ -57,6 +65,7 @@ public static class StudioDbSeeder
             SupportsStreaming = true,
             SupportsTools = true,
             SupportsVision = true,
+            ThinkingIntensitiesJson = "[\"low\",\"medium\",\"high\"]",
             IsEnabled = true,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -71,6 +80,7 @@ public static class StudioDbSeeder
             SystemPrompt = "You are AgileAI Studio Concierge. Be clear, practical, and modern. Keep answers concise but useful.",
             Temperature = 0.65d,
             MaxTokens = 1400,
+            ThinkingIntensity = "medium",
             EnableSkills = false,
             IsPinned = true,
             CreatedAtUtc = now,

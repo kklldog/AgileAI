@@ -4,6 +4,7 @@ using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using AgileAI.Providers.OpenAICompatible;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace AgileAI.Studio.Api.Services;
 
@@ -113,6 +114,7 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
             SupportsStreaming = request.SupportsStreaming,
             SupportsTools = request.SupportsTools,
             SupportsVision = request.SupportsVision,
+            ThinkingIntensitiesJson = JsonSerializer.Serialize(NormalizeThinkingIntensities(request.ThinkingIntensities)),
             IsEnabled = request.IsEnabled,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
@@ -140,6 +142,7 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
         entity.SupportsStreaming = request.SupportsStreaming;
         entity.SupportsTools = request.SupportsTools;
         entity.SupportsVision = request.SupportsVision;
+        entity.ThinkingIntensitiesJson = JsonSerializer.Serialize(NormalizeThinkingIntensities(request.ThinkingIntensities));
         entity.IsEnabled = request.IsEnabled;
         entity.UpdatedAtUtc = DateTimeOffset.UtcNow;
 
@@ -300,6 +303,7 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
             entity.SupportsStreaming,
             entity.SupportsTools,
             entity.SupportsVision,
+            ParseThinkingIntensities(entity.ThinkingIntensitiesJson),
             entity.IsEnabled,
             entity.CreatedAtUtc,
             entity.UpdatedAtUtc);
@@ -359,6 +363,39 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
         {
             throw new InvalidOperationException("Model key is required.");
         }
+    }
+
+    public static IReadOnlyList<string> ParseThinkingIntensities(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return [];
+        }
+
+        try
+        {
+            return NormalizeThinkingIntensities(JsonSerializer.Deserialize<List<string>>(json));
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
+    }
+
+    public static IReadOnlyList<string> NormalizeThinkingIntensities(IReadOnlyList<string>? values)
+    {
+        if (values == null || values.Count == 0)
+        {
+            return [];
+        }
+
+        return values
+            .Select(static value => value?.Trim())
+            .Where(static value => string.IsNullOrWhiteSpace(value) == false)
+            .Select(static value => value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToList();
     }
 
     private static string? NormalizeOptional(string? value)

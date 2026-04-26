@@ -41,6 +41,7 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.HasKey(x => x.Id);
             entity.Property(x => x.DisplayName).HasMaxLength(120);
             entity.Property(x => x.ModelKey).HasMaxLength(200);
+            entity.Property(x => x.ThinkingIntensitiesJson).HasMaxLength(1000);
             entity.HasMany(x => x.Agents)
                 .WithOne(x => x.StudioModel)
                 .HasForeignKey(x => x.StudioModelId)
@@ -54,6 +55,7 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.Property(x => x.Name).HasMaxLength(120);
             entity.Property(x => x.Description).HasMaxLength(600);
             entity.Property(x => x.SystemPrompt).HasMaxLength(8000);
+            entity.Property(x => x.ThinkingIntensity).HasMaxLength(80);
             entity.HasMany(x => x.Conversations)
                 .WithOne(x => x.AgentDefinition)
                 .HasForeignKey(x => x.AgentDefinitionId)
