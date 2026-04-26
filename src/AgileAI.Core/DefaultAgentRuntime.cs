@@ -194,7 +194,7 @@ public class DefaultAgentRuntime : IAgentRuntime
         }
 
         _logger?.LogDebug("Executing plain chat. SeedHistoryCount={HistoryCount}", request.History?.Count ?? 0);
-        var response = await chatSession.SendAsync(request.Input, cancellationToken: cancellationToken);
+        var response = await chatSession.SendAsync(request.Input, request.Options, cancellationToken);
 
         return new AgentResult
         {

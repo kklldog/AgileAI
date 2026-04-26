@@ -36,7 +36,7 @@ public class PromptSkillExecutor : ISkillExecutor
         var messages = preparedHistory;
         messages.Add(ChatMessage.User(context.Request.Input));
 
-        var options = new ChatOptions();
+        var options = context.Request.Options ?? new ChatOptions();
         var toolCount = 0;
         if (_toolRegistry != null)
         {
