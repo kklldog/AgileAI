@@ -208,21 +208,29 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
             ProviderType.OpenAI => "openai",
             ProviderType.AzureOpenAI => "azure-openai",
             ProviderType.OpenAICompatible => NormalizeProviderName(provider.ProviderName),
+            ProviderType.DeepSeek => DeepSeekProviderName,
             _ => throw new InvalidOperationException("Unsupported provider type.")
         };
 
-        OpenAICompatibleAuthMode? authMode = provider.ProviderType == ProviderType.OpenAICompatible
+        OpenAICompatibleAuthMode? authMode = provider.ProviderType is ProviderType.OpenAICompatible or ProviderType.DeepSeek
             ? ParseAuthMode(provider.AuthMode)
             : null;
+
+        var baseUrl = provider.ProviderType == ProviderType.DeepSeek
+            ? provider.BaseUrl ?? DeepSeekBaseUrl
+            : provider.BaseUrl;
+        var relativePath = provider.ProviderType == ProviderType.DeepSeek
+            ? provider.RelativePath ?? DeepSeekRelativePath
+            : provider.RelativePath;
 
         return new ProviderRuntimeOptions(
             provider.ProviderType,
             runtimeProviderName,
             $"{runtimeProviderName}:{model.ModelKey}",
             provider.ApiKey,
-            provider.BaseUrl,
+            baseUrl,
             provider.Endpoint,
-            provider.RelativePath,
+            relativePath,
             authMode,
             provider.ApiKeyHeaderName,
             provider.ApiVersion);
@@ -326,6 +334,14 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
             }
         }
 
+        if (entity.ProviderType == ProviderType.DeepSeek)
+        {
+            if (!Uri.TryCreate(entity.BaseUrl, UriKind.Absolute, out _))
+            {
+                throw new InvalidOperationException("DeepSeek base URL is required.");
+            }
+        }
+
         if (entity.ProviderType == ProviderType.AzureOpenAI && !Uri.TryCreate(entity.Endpoint, UriKind.Absolute, out _))
         {
             throw new InvalidOperationException("Azure OpenAI endpoint is required.");
@@ -347,6 +363,10 @@ public class ModelCatalogService(StudioDbContext dbContext, ProviderClientFactor
 
     private static string? NormalizeOptional(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private const string DeepSeekProviderName = "deepseek";
+    private const string DeepSeekBaseUrl = "https://api.deepseek.com";
+    private const string DeepSeekRelativePath = "chat/completions";
 
     private static string NormalizeProviderName(string? value)
         => string.IsNullOrWhiteSpace(value) ? throw new InvalidOperationException("Provider name is required.") : value.Trim().ToLowerInvariant();

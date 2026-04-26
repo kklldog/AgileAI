@@ -4,5 +4,6 @@ public enum ProviderType
 {
     OpenAI = 1,
     OpenAICompatible = 2,
-    AzureOpenAI = 3
+    AzureOpenAI = 3,
+    DeepSeek = 4
 }

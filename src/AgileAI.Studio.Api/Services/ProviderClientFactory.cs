@@ -20,6 +20,7 @@ public class ProviderClientFactory(ILoggerFactory loggerFactory)
             {
                 ProviderType.OpenAI => "openai",
                 ProviderType.AzureOpenAI => "azure-openai",
+                ProviderType.DeepSeek => "deepseek",
                 _ => options.RuntimeProviderName
             };
 
@@ -43,6 +44,18 @@ public class ProviderClientFactory(ILoggerFactory loggerFactory)
                 },
                 loggerFactory.CreateLogger<OpenAIChatModelProvider>()),
             ProviderType.OpenAICompatible => new OpenAICompatibleChatModelProvider(
+                CreateHttpClient(options.BaseUrl),
+                new OpenAICompatibleOptions
+                {
+                    ProviderName = options.RuntimeProviderName,
+                    ApiKey = options.ApiKey,
+                    BaseUrl = options.BaseUrl ?? string.Empty,
+                    RelativePath = options.RelativePath ?? "chat/completions",
+                    AuthMode = options.AuthMode ?? OpenAICompatibleAuthMode.Bearer,
+                    ApiKeyHeaderName = options.ApiKeyHeaderName
+                },
+                loggerFactory.CreateLogger<OpenAICompatibleChatModelProvider>()),
+            ProviderType.DeepSeek => new OpenAICompatibleChatModelProvider(
                 CreateHttpClient(options.BaseUrl),
                 new OpenAICompatibleOptions
                 {
