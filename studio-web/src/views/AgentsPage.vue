@@ -69,6 +69,9 @@
           <n-form-item label="Temperature"><n-input-number v-model:value="form.temperature" :min="0" :max="2" :step="0.1" /></n-form-item>
           <n-form-item label="Max tokens"><n-input-number v-model:value="form.maxTokens" :min="256" :max="8192" :step="128" /></n-form-item>
         </div>
+        <n-form-item v-if="thinkingIntensityOptions.length" label="Thinking intensity">
+          <n-select v-model:value="form.thinkingIntensity" clearable :options="thinkingIntensityOptions" />
+        </n-form-item>
         <div class="form-grid">
           <n-form-item label="Enable skills"><n-switch v-model:value="form.enableSkills" /></n-form-item>
           <n-form-item label="Pin on top"><n-switch v-model:value="form.isPinned" /></n-form-item>
@@ -145,6 +148,7 @@ const form = reactive<AgentPayload>({
   systemPrompt: '',
   temperature: 0.6,
   maxTokens: 2048,
+  thinkingIntensity: null,
   enableSkills: false,
   isPinned: false,
   selectedToolNames: [],
@@ -157,6 +161,14 @@ const modelOptions = computed(() =>
 
 const toolOptions = computed(() =>
   store.agentTools.map((tool) => ({ label: tool.name, value: tool.name })),
+)
+
+const selectedModel = computed(() =>
+  store.models.find((item) => item.id === form.studioModelId) ?? null,
+)
+
+const thinkingIntensityOptions = computed(() =>
+  (selectedModel.value?.thinkingIntensities ?? []).map((value) => ({ label: value, value })),
 )
 
 const visibleAgents = computed(() => store.agents.slice(0, visibleAgentCount.value))
@@ -181,6 +193,7 @@ function resetForm() {
     systemPrompt: '',
     temperature: 0.6,
     maxTokens: 2048,
+    thinkingIntensity: null,
     enableSkills: false,
     isPinned: false,
     selectedToolNames: store.agentTools.map((tool) => tool.name),
@@ -198,6 +211,7 @@ function openModal(item?: AgentItem) {
       systemPrompt: item.systemPrompt,
       temperature: item.temperature,
       maxTokens: item.maxTokens,
+      thinkingIntensity: item.thinkingIntensity ?? null,
       enableSkills: item.enableSkills,
       isPinned: item.isPinned,
       selectedToolNames: item.selectedToolNames.length ? [...item.selectedToolNames] : store.agentTools.map((tool) => tool.name),
@@ -208,6 +222,20 @@ function openModal(item?: AgentItem) {
   }
   showModal.value = true
 }
+
+watch(
+  () => form.studioModelId,
+  () => {
+    if (!form.thinkingIntensity) {
+      return
+    }
+
+    const allowed = selectedModel.value?.thinkingIntensities ?? []
+    if (!allowed.some((value) => value.toLowerCase() === form.thinkingIntensity?.toLowerCase())) {
+      form.thinkingIntensity = null
+    }
+  },
+)
 
 function toggleAllowedSkill(skillName: string, checked: boolean) {
   if (checked) {

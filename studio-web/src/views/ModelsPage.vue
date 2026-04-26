@@ -134,6 +134,9 @@
                   <n-tag v-if="item.supportsStreaming" size="tiny" type="info">Streaming</n-tag>
                   <n-tag v-if="item.supportsTools" size="tiny" type="info">Tools</n-tag>
                   <n-tag v-if="item.supportsVision" size="tiny" type="info">Vision</n-tag>
+                  <n-tag v-for="intensity in item.thinkingIntensities" :key="`${item.id}-${intensity}`" size="tiny" type="warning">
+                    Think {{ intensity }}
+                  </n-tag>
                 </n-space>
               </n-descriptions-item>
             </n-descriptions>
@@ -176,6 +179,9 @@
         <n-form-item label="Streaming"><n-switch v-model:value="modelForm.supportsStreaming" /></n-form-item>
         <n-form-item label="Tools"><n-switch v-model:value="modelForm.supportsTools" /></n-form-item>
         <n-form-item label="Vision"><n-switch v-model:value="modelForm.supportsVision" /></n-form-item>
+        <n-form-item label="Thinking intensities">
+          <n-dynamic-tags v-model:value="modelForm.thinkingIntensities" />
+        </n-form-item>
         <n-form-item label="Enabled"><n-switch v-model:value="modelForm.isEnabled" /></n-form-item>
         <n-space justify="end"><n-button @click="showModelModal = false">Cancel</n-button><n-button type="primary" :disabled="!isModelValid" data-testid="save-model" @click="submitModel">Save</n-button></n-space>
       </n-form>
@@ -185,7 +191,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useMessage, NButton, NCard, NForm, NFormItem, NInput, NModal, NPopconfirm, NSelect, NSpace, NSwitch, NTag, NIcon, NText, NEllipsis, NDescriptions, NDescriptionsItem, NDivider } from 'naive-ui'
+import { useMessage, NButton, NCard, NForm, NFormItem, NInput, NModal, NPopconfirm, NSelect, NSpace, NSwitch, NTag, NIcon, NText, NEllipsis, NDescriptions, NDescriptionsItem, NDivider, NDynamicTags } from 'naive-ui'
 import { CreateOutline, TrashOutline, ServerOutline, CubeOutline, FlashOutline } from '@vicons/ionicons5'
 import { useStudioStore } from '../stores/studio'
 import type { ProviderConnectionPayload, ModelPayload } from '../api/studio'
@@ -229,6 +235,7 @@ const modelForm = reactive<ModelPayload>({
   supportsStreaming: true,
   supportsTools: true,
   supportsVision: false,
+  thinkingIntensities: [],
   isEnabled: true,
 })
 
@@ -530,6 +537,7 @@ function resetModelForm() {
     supportsStreaming: true,
     supportsTools: true,
     supportsVision: false,
+    thinkingIntensities: [],
     isEnabled: true,
   })
 }
@@ -567,6 +575,7 @@ function openModelModal(item?: ModelItem) {
       supportsStreaming: item.supportsStreaming,
       supportsTools: item.supportsTools,
       supportsVision: item.supportsVision,
+      thinkingIntensities: [...item.thinkingIntensities],
       isEnabled: item.isEnabled,
     })
   } else {
