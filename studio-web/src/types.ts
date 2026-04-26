@@ -1,4 +1,4 @@
-export type ProviderType = 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI'
+export type ProviderType = 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI' | 'DeepSeek'
 
 export interface ProviderConnection {
   id: string

@@ -2,7 +2,7 @@ import { http } from './http'
 import type { AgentItem, ChatStreamStart, ConversationItem, MessageItem, ModelItem, Overview, ProviderConnection, SkillItem, ToolApprovalItem, ToolApprovalResolutionResult, ToolOption } from '../types'
 
 const messageRoleMap = [undefined, 'System', 'User', 'Assistant', 'Tool'] as const
-const providerTypeMap = ['OpenAI', 'OpenAI', 'OpenAICompatible', 'AzureOpenAI'] as const
+const providerTypeMap = ['OpenAI', 'OpenAI', 'OpenAICompatible', 'AzureOpenAI', 'DeepSeek'] as const
 
 function normalizeProviderType(value: ProviderConnection['providerType'] | number | string): ProviderConnection['providerType'] {
   if (typeof value === 'string') {
@@ -36,7 +36,7 @@ function normalizeMessage(item: MessageItem & { role: MessageItem['role'] | numb
 
 export interface ProviderConnectionPayload {
   name: string
-  providerType: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI'
+  providerType: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI' | 'DeepSeek'
   apiKey: string
   baseUrl?: string | null
   endpoint?: string | null
@@ -52,6 +52,7 @@ const providerTypeValueMap: Record<ProviderConnectionPayload['providerType'], nu
   OpenAI: 1,
   OpenAICompatible: 2,
   AzureOpenAI: 3,
+  DeepSeek: 4,
 }
 
 function serializeProviderConnectionPayload(payload: ProviderConnectionPayload) {

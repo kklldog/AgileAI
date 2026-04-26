@@ -236,9 +236,10 @@ const providerOptions = [
   { label: 'OpenAI', value: 'OpenAI' },
   { label: 'OpenAI Compatible', value: 'OpenAICompatible' },
   { label: 'Azure OpenAI', value: 'AzureOpenAI' },
+  { label: 'DeepSeek', value: 'DeepSeek' },
 ]
 
-function getProviderTypeDefaults(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI') {
+function getProviderTypeDefaults(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI' | 'DeepSeek') {
   if (type === 'OpenAI') {
     return {
       baseUrl: 'https://api.openai.com/v1/',
@@ -263,6 +264,18 @@ function getProviderTypeDefaults(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpe
     }
   }
 
+  if (type === 'DeepSeek') {
+    return {
+      baseUrl: 'https://api.deepseek.com',
+      endpoint: '',
+      providerName: 'deepseek',
+      relativePath: 'chat/completions',
+      authMode: 'Bearer',
+      apiKeyHeaderName: '',
+      apiVersion: '2024-02-01',
+    }
+  }
+
   return {
     baseUrl: '',
     endpoint: 'https://your-resource.openai.azure.com/',
@@ -274,7 +287,7 @@ function getProviderTypeDefaults(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpe
   }
 }
 
-function applyProviderPreset(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI', options?: { force?: boolean }) {
+function applyProviderPreset(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI' | 'DeepSeek', options?: { force?: boolean }) {
   const defaults = getProviderTypeDefaults(type)
   const force = options?.force ?? false
 
@@ -288,7 +301,7 @@ function applyProviderPreset(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI'
   providerForm.apiVersion = force || !providerForm.apiVersion?.trim() ? defaults.apiVersion : providerForm.apiVersion
 }
 
-function handleProviderTypeChange(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI') {
+function handleProviderTypeChange(type: 'OpenAI' | 'OpenAICompatible' | 'AzureOpenAI' | 'DeepSeek') {
   applyProviderPreset(type)
 }
 
@@ -331,6 +344,10 @@ const isProviderValid = computed(() => {
     return Boolean(providerForm.providerName?.trim() && providerForm.relativePath?.trim())
   }
 
+  if (providerForm.providerType === 'DeepSeek') {
+    return Boolean(providerForm.relativePath?.trim())
+  }
+
   return true
 })
 
@@ -343,6 +360,7 @@ function getProviderTypeColor(type: string): 'default' | 'success' | 'warning' |
     case 'OpenAI': return 'success'
     case 'AzureOpenAI': return 'info'
     case 'OpenAICompatible': return 'warning'
+    case 'DeepSeek': return 'success'
     default: return 'default'
   }
 }
