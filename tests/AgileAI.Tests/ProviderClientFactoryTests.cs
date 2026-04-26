@@ -121,6 +121,53 @@ public class ProviderClientFactoryTests
     }
 
     [Fact]
+    public async Task CreateClient_WithDemoLocalDeepSeek_ShouldUseMockProvider()
+    {
+        var factory = new ProviderClientFactory(NullLoggerFactory.Instance);
+
+        var client = factory.CreateClient(new ProviderRuntimeOptions(
+            ProviderType.DeepSeek,
+            "deepseek",
+            "deepseek:deepseek-v4-flash",
+            "demo-local",
+            "mock://deepseek/",
+            null,
+            "chat/completions",
+            AgileAI.Providers.OpenAICompatible.OpenAICompatibleAuthMode.Bearer,
+            null,
+            null));
+
+        var response = await client.CompleteAsync(new AgileAI.Abstractions.ChatRequest
+        {
+            ModelId = "deepseek:deepseek-v4-flash",
+            Messages = [AgileAI.Abstractions.ChatMessage.User("Respond with OK")]
+        });
+
+        Assert.True(response.IsSuccess);
+        Assert.Equal("OK", response.Message?.TextContent);
+    }
+
+    [Fact]
+    public void CreateClient_WithRealDeepSeekOptions_ShouldConstructClient()
+    {
+        var factory = new ProviderClientFactory(NullLoggerFactory.Instance);
+
+        var client = factory.CreateClient(new ProviderRuntimeOptions(
+            ProviderType.DeepSeek,
+            "deepseek",
+            "deepseek:deepseek-v4-flash",
+            "real-key",
+            "https://api.deepseek.com",
+            null,
+            "chat/completions",
+            AgileAI.Providers.OpenAICompatible.OpenAICompatibleAuthMode.Bearer,
+            null,
+            null));
+
+        Assert.NotNull(client);
+    }
+
+    [Fact]
     public void CreateClient_WithUnsupportedProviderType_ShouldThrow()
     {
         var factory = new ProviderClientFactory(NullLoggerFactory.Instance);

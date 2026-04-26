@@ -162,6 +162,106 @@ public class ModelCatalogServiceTests
     }
 
     [Fact]
+    public async Task CreateModelAsync_AndGetRuntimeOptionsAsync_WithDeepSeek_ShouldApplyDeepSeekRuntimeDefaults()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var dbContext = await CreateDbContextAsync(connection);
+        var service = CreateService(dbContext);
+
+        var provider = await service.CreateProviderConnectionAsync(
+            new ProviderConnectionRequest(
+                "DeepSeek",
+                ProviderType.DeepSeek,
+                "sk-deepseek-12345678",
+                "https://api.deepseek.com",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true),
+            CancellationToken.None);
+
+        var model = await service.CreateModelAsync(
+            new ModelRequest(
+                provider.Id,
+                "DeepSeek Flash",
+                "deepseek-v4-flash",
+                true,
+                true,
+                false,
+                true),
+            CancellationToken.None);
+
+        var runtime = await service.GetRuntimeOptionsAsync(model.Id, CancellationToken.None);
+
+        Assert.Equal("deepseek", runtime.RuntimeProviderName);
+        Assert.Equal("deepseek:deepseek-v4-flash", runtime.RuntimeModelId);
+        Assert.Equal("https://api.deepseek.com", runtime.BaseUrl);
+        Assert.Equal("chat/completions", runtime.RelativePath);
+        Assert.Equal(AgileAI.Providers.OpenAICompatible.OpenAICompatibleAuthMode.Bearer, runtime.AuthMode);
+    }
+
+    [Fact]
+    public async Task CreateProviderConnectionAsync_WithInvalidDeepSeekBaseUrl_ShouldThrow()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var dbContext = await CreateDbContextAsync(connection);
+        var service = CreateService(dbContext);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateProviderConnectionAsync(
+            new ProviderConnectionRequest(
+                "DeepSeek",
+                ProviderType.DeepSeek,
+                "sk-test",
+                "not-a-url",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true),
+            CancellationToken.None));
+
+        Assert.Equal("DeepSeek base URL is required.", error.Message);
+    }
+
+    [Fact]
+    public async Task TestModelAsync_WithMockDeepSeekProvider_ShouldReturnSuccessMessage()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var dbContext = await CreateDbContextAsync(connection);
+        var service = CreateService(dbContext);
+
+        var provider = await service.CreateProviderConnectionAsync(
+            new ProviderConnectionRequest(
+                "Demo DeepSeek",
+                ProviderType.DeepSeek,
+                "demo-local",
+                "mock://deepseek/",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                true),
+            CancellationToken.None);
+
+        var model = await service.CreateModelAsync(
+            new ModelRequest(provider.Id, "DeepSeek Demo", "deepseek-v4-flash", true, true, false, true),
+            CancellationToken.None);
+
+        var result = await service.TestModelAsync(model.Id, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.Contains("Connection succeeded.", result.Message);
+        Assert.Contains("OK", result.Message);
+    }
+
+    [Fact]
     public async Task TestModelAsync_WithMockProvider_ShouldReturnSuccessMessage()
     {
         await using var connection = await OpenConnectionAsync();
