@@ -170,6 +170,7 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
             Temperature = request.Options?.Temperature,
             TopP = request.Options?.TopP,
             MaxTokens = request.Options?.MaxTokens,
+            ReasoningEffort = NormalizeThinkingIntensity(request.Options?.ThinkingIntensity),
             Stop = request.Options?.StopSequences
         };
 
@@ -249,6 +250,21 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
             _ => "[unsupported content part]"
         };
 
+    public static string? NormalizeThinkingIntensity(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "minimal" or "low" or "medium" or "high" => normalized,
+            _ => value.Trim()
+        };
+    }
+
     protected virtual ChatResponse MapFromResponse(OpenAICompatibleChatCompletionResponse? response, string invalidResponseMessage)
     {
         if (response?.Choices == null || response.Choices.Count == 0)
@@ -301,6 +317,7 @@ public class OpenAICompatibleChatCompletionRequest
     public double? Temperature { get; set; }
     public double? TopP { get; set; }
     public int? MaxTokens { get; set; }
+    public string? ReasoningEffort { get; set; }
     public IReadOnlyList<string>? Stop { get; set; }
     public List<OpenAICompatibleToolDefinition>? Tools { get; set; }
     public bool? Stream { get; set; }

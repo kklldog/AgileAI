@@ -157,6 +157,9 @@ public class OpenAIResponsesChatModelProvider : IChatModelProvider
             Temperature = request.Options?.Temperature,
             TopP = request.Options?.TopP,
             MaxOutputTokens = request.Options?.MaxTokens,
+            Reasoning = string.IsNullOrWhiteSpace(request.Options?.ThinkingIntensity)
+                ? null
+                : new OpenAIResponsesReasoning { Effort = OpenAICompatibleProviderBase.NormalizeThinkingIntensity(request.Options.ThinkingIntensity) },
             Stop = request.Options?.StopSequences
         };
 
@@ -287,8 +290,14 @@ public class OpenAIResponsesRequest
     public double? Temperature { get; set; }
     public double? TopP { get; set; }
     public int? MaxOutputTokens { get; set; }
+    public OpenAIResponsesReasoning? Reasoning { get; set; }
     public IReadOnlyList<string>? Stop { get; set; }
     public List<OpenAIResponsesToolDefinition>? Tools { get; set; }
+}
+
+public class OpenAIResponsesReasoning
+{
+    public string? Effort { get; set; }
 }
 
 public class OpenAIResponsesInputItem
