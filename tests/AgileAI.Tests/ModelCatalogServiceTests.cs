@@ -151,6 +151,7 @@ public class ModelCatalogServiceTests
                 true,
                 true,
                 false,
+                null,
                 true),
             CancellationToken.None);
 
@@ -191,6 +192,7 @@ public class ModelCatalogServiceTests
                 true,
                 true,
                 false,
+                null,
                 true),
             CancellationToken.None);
 
@@ -251,7 +253,7 @@ public class ModelCatalogServiceTests
             CancellationToken.None);
 
         var model = await service.CreateModelAsync(
-            new ModelRequest(provider.Id, "DeepSeek Demo", "deepseek-v4-flash", true, true, false, true),
+            new ModelRequest(provider.Id, "DeepSeek Demo", "deepseek-v4-flash", true, true, false, null, true),
             CancellationToken.None);
 
         var result = await service.TestModelAsync(model.Id, CancellationToken.None);
@@ -284,7 +286,7 @@ public class ModelCatalogServiceTests
             CancellationToken.None);
 
         var model = await service.CreateModelAsync(
-            new ModelRequest(provider.Id, "Demo", "gpt-4o-mini", true, true, false, true),
+            new ModelRequest(provider.Id, "Demo", "gpt-4o-mini", true, true, false, null, true),
             CancellationToken.None);
 
         var result = await service.TestModelAsync(model.Id, CancellationToken.None);

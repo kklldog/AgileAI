@@ -63,6 +63,7 @@ public class AgentServiceTests
                 "  System prompt  ",
                 0.4,
                 512,
+                "medium",
                 true,
                 true,
                 ["read_file", "invalid-tool", "read_file", "run_local_command"],
@@ -95,12 +96,12 @@ public class AgentServiceTests
         var service = CreateService(dbContext, registry);
         var model = await SeedModelAsync(dbContext);
         var created = await service.CreateAgentAsync(
-            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, false, false, ["read_file"], ["planner"]),
+            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, null, false, false, ["read_file"], ["planner"]),
             CancellationToken.None);
 
         var updated = await service.UpdateAgentAsync(
             created.Id,
-            new AgentRequestDto(model.Id, "Updated", "Updated desc", "Updated prompt", 0.9, 256, true, true, ["write_file", "write_file"], ["writer", "writer"]),
+            new AgentRequestDto(model.Id, "Updated", "Updated desc", "Updated prompt", 0.9, 256, "high", true, true, ["write_file", "write_file"], ["writer", "writer"]),
             CancellationToken.None);
 
         Assert.Equal("Updated", updated.Name);
@@ -122,7 +123,7 @@ public class AgentServiceTests
         var service = CreateService(dbContext, registry);
         var model = await SeedModelAsync(dbContext);
         var created = await service.CreateAgentAsync(
-            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, true, false, ["read_file"], ["planner"]),
+            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, null, true, false, ["read_file"], ["planner"]),
             CancellationToken.None);
 
         await service.DeleteAgentAsync(created.Id, CancellationToken.None);
@@ -141,7 +142,7 @@ public class AgentServiceTests
         var model = await SeedModelAsync(dbContext);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAgentAsync(
-            new AgentRequestDto(model.Id, "   ", "Desc", "Prompt", 0.2, 0, false, false, null, null),
+            new AgentRequestDto(model.Id, "   ", "Desc", "Prompt", 0.2, 0, null, false, false, null, null),
             CancellationToken.None));
 
         Assert.Equal("Agent name is required.", error.Message);
@@ -210,6 +211,7 @@ public class AgentServiceTests
             ModelKey = "gpt-4o-mini",
             SupportsStreaming = true,
             SupportsTools = true,
+            ThinkingIntensitiesJson = "[\"low\",\"medium\",\"high\"]",
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
