@@ -69,6 +69,7 @@ export interface ModelPayload {
   supportsStreaming: boolean
   supportsTools: boolean
   supportsVision: boolean
+  thinkingIntensities: string[]
   isEnabled: boolean
 }
 
@@ -79,6 +80,7 @@ export interface AgentPayload {
   systemPrompt: string
   temperature: number
   maxTokens: number
+  thinkingIntensity?: string | null
   enableSkills: boolean
   isPinned: boolean
   selectedToolNames: string[]

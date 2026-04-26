@@ -27,6 +27,7 @@ export interface ModelItem {
   supportsStreaming: boolean
   supportsTools: boolean
   supportsVision: boolean
+  thinkingIntensities: string[]
   isEnabled: boolean
   createdAtUtc: string
   updatedAtUtc: string
@@ -40,6 +41,7 @@ export interface AgentItem {
   systemPrompt: string
   temperature: number
   maxTokens: number
+  thinkingIntensity?: string | null
   enableSkills: boolean
   isPinned: boolean
   selectedToolNames: string[]
