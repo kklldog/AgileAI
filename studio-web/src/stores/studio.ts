@@ -232,6 +232,20 @@ export const useStudioStore = defineStore('studio', {
         ? this.conversations.map((item) => (item.id === conversation.id ? conversation : item))
         : [conversation, ...this.conversations]
     },
+    async resolveAutoApprovedPendingApproval(conversationId: string) {
+      if (!this.autoApproveToolCallsByConversation[conversationId]) {
+        return
+      }
+
+      const pendingApproval = (this.toolApprovalsByConversation[conversationId] ?? [])
+        .find((item) => item.status === 'Pending' && !this.resolvingApprovalIds.includes(item.id))
+
+      if (!pendingApproval) {
+        return
+      }
+
+      await this.resolveToolApprovalAction(pendingApproval.id, true, 'Auto-approved for this session.')
+    },
     _addOptimisticChatTurn(conversationId: string, content: string) {
       const existing = this.messagesByConversation[conversationId] ?? []
       const optimisticUserId = `temp-user-${Date.now()}`
@@ -300,9 +314,7 @@ export const useStudioStore = defineStore('studio', {
         onApprovalRequired: (approval) => {
           this.upsertToolApproval(conversationId, approval)
 
-          if (this.autoApproveToolCallsByConversation[conversationId]) {
-            void this.resolveToolApprovalAction(approval.id, true, 'Auto-approved for this session.')
-          }
+          void this.resolveAutoApprovedPendingApproval(conversationId)
         },
         onError: (message) => {
           this.streamError = message
@@ -332,6 +344,7 @@ export const useStudioStore = defineStore('studio', {
             item.id === conversationId ? result.conversation : item,
           )
           await this.refreshOverview()
+          await this.resolveAutoApprovedPendingApproval(conversationId)
           return result
         }
 
@@ -371,6 +384,7 @@ export const useStudioStore = defineStore('studio', {
         this.messagesByConversation[conversationId] = refreshedMessages
         this.conversations = await getConversations()
         await this.refreshOverview()
+        await this.resolveAutoApprovedPendingApproval(conversationId)
         return null
       } finally {
         this.resolvingApprovalIds = this.resolvingApprovalIds.filter((item) => item !== approvalId)

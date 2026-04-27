@@ -146,7 +146,7 @@
           <strong>{{ pendingApproval.toolName }}</strong>
           <n-tag type="warning" size="small">Pending</n-tag>
         </div>
-        <p class="approval-warning">This command will execute on your machine with local shell access.</p>
+        <p class="approval-warning">This tool call will change local workspace state and needs your approval.</p>
         <pre class="approval-command">{{ extractCommandPreview(pendingApproval.argumentsJson) }}</pre>
         <n-checkbox v-model:checked="alwaysApproveInSession" data-testid="approval-auto-approve">
           Always approve tool calls in this session
@@ -372,7 +372,7 @@ async function resolveApproval(approvalId: string, approved: boolean) {
     }
 
     await store.resolveToolApprovalAction(approvalId, approved)
-    message.success(approved ? 'Command approved' : 'Command rejected')
+    message.success(approved ? 'Tool call approved' : 'Tool call rejected')
     if (!approved) {
       alwaysApproveInSession.value = false
     }
@@ -389,7 +389,11 @@ watch(
       return
     }
 
-    alwaysApproveInSession.value = Boolean(store.autoApproveToolCallsByConversation[approval.conversationId])
+    const shouldAutoApprove = Boolean(store.autoApproveToolCallsByConversation[approval.conversationId])
+    alwaysApproveInSession.value = shouldAutoApprove
+    if (shouldAutoApprove && !store.resolvingApprovalIds.includes(approval.id)) {
+      void store.resolveToolApprovalAction(approval.id, true, 'Auto-approved for this session.')
+    }
   },
   { immediate: true },
 )
