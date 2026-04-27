@@ -341,7 +341,18 @@ async function selectConversation(id: string) {
   await store.fetchMessages(id)
 }
 
+const APPROVAL_PREVIEW_MAX_CHARS = 1200
+
+function truncatePreviewText(text: string) {
+  if (text.length <= APPROVAL_PREVIEW_MAX_CHARS) {
+    return text
+  }
+  const remaining = text.length - APPROVAL_PREVIEW_MAX_CHARS
+  return `${text.slice(0, APPROVAL_PREVIEW_MAX_CHARS)}\n… [truncated ${remaining} more characters]`
+}
+
 function extractCommandPreview(argumentsJson: string) {
+  let raw: string
   try {
     const parsed = JSON.parse(argumentsJson) as { command?: string; workingDirectory?: string; shell?: string; timeoutMs?: number }
     const parts = [parsed.command ?? argumentsJson]
@@ -354,10 +365,11 @@ function extractCommandPreview(argumentsJson: string) {
     if (parsed.timeoutMs) {
       parts.push(`timeout: ${parsed.timeoutMs}ms`)
     }
-    return parts.join('\n')
+    raw = parts.join('\n')
   } catch {
-    return argumentsJson
+    raw = argumentsJson
   }
+  return truncatePreviewText(raw)
 }
 
 function getToolHistoryForMessage(messageId: string) {
@@ -539,6 +551,10 @@ function formatConversationMeta(conversation: { createdAtUtc: string; messageCou
   color: #e2e8f0;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .approval-actions {

@@ -38,6 +38,14 @@ public static class StudioDbSeeder
             "ALTER TABLE \"Agents\" ADD COLUMN \"ThinkingIntensity\" TEXT NULL",
             cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
 
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"ToolApprovalRequests\" ADD COLUMN \"AssistantReasoningContent\" TEXT NULL",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
+        await dbContext.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE \"ToolApprovalRequests\" ADD COLUMN \"ConsecutiveFailureCount\" INTEGER NOT NULL DEFAULT 0",
+            cancellationToken).ContinueWith(_ => Task.CompletedTask, cancellationToken);
+
         if (await dbContext.ProviderConnections.AnyAsync(cancellationToken))
         {
             return;

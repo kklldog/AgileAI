@@ -67,6 +67,7 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
                 Content = new StringContent(json, Encoding.UTF8, "application/json")
             };
             response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
             response.EnsureSuccessStatusCode();
         }
         catch (Exception ex)
@@ -117,6 +118,9 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
 
                 if (!string.IsNullOrEmpty(delta?.Content))
                     yield return new TextDeltaUpdate(delta.Content);
+
+                if (!string.IsNullOrEmpty(delta?.ReasoningContent))
+                    yield return new ReasoningDeltaUpdate(delta.ReasoningContent);
 
                 if (delta?.ToolCalls != null && delta.ToolCalls.Count > 0)
                 {
@@ -209,7 +213,8 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
         {
             Role = role,
             Content = BuildTextContent(message),
-            ToolCallId = message.ToolCallId
+            ToolCallId = message.ToolCallId,
+            ReasoningContent = message.Role == ChatRole.Assistant ? message.ReasoningContent : null
         };
 
         if (message.ToolCalls != null && message.ToolCalls.Count > 0)
@@ -296,7 +301,8 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
             {
                 Role = ChatRole.Assistant,
                 TextContent = message?.Content,
-                ToolCalls = toolCalls
+                ToolCalls = toolCalls,
+                ReasoningContent = message?.ReasoningContent
             },
             FinishReason = choice.FinishReason,
             Usage = response.Usage == null ? null : new UsageInfo
@@ -342,6 +348,7 @@ public class OpenAICompatibleMessage
     public string Role { get; set; } = string.Empty;
     [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
+    public string? ReasoningContent { get; set; }
     public string? ToolCallId { get; set; }
     public List<OpenAICompatibleToolCall>? ToolCalls { get; set; }
 }
@@ -407,6 +414,7 @@ public class OpenAICompatibleStreamChoice
 public class OpenAICompatibleDelta
 {
     public string? Content { get; set; }
+    public string? ReasoningContent { get; set; }
     public List<OpenAICompatibleToolCall>? ToolCalls { get; set; }
 }
 

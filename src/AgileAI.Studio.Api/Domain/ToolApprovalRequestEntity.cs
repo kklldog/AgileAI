@@ -12,12 +12,14 @@ public class ToolApprovalRequestEntity
     public string ToolName { get; set; } = string.Empty;
     public string ArgumentsJson { get; set; } = string.Empty;
     public string AssistantToolCallContent { get; set; } = string.Empty;
+    public string? AssistantReasoningContent { get; set; }
     public ToolApprovalStatus Status { get; set; } = ToolApprovalStatus.Pending;
     public string? DecisionComment { get; set; }
     public string? ResultContent { get; set; }
     public int? ExitCode { get; set; }
     public string? StandardOutput { get; set; }
     public string? StandardError { get; set; }
+    public int ConsecutiveFailureCount { get; set; }
     public DateTimeOffset RequestedAtUtc { get; set; }
     public DateTimeOffset? DecidedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }

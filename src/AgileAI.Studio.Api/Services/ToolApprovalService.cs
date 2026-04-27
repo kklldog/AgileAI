@@ -19,11 +19,14 @@ public sealed class ToolApprovalService(
     StudioToolRegistryFactory toolRegistryFactory,
     StudioStreamingTurnFinalizer streamingTurnFinalizer)
 {
+    private const int MaxConsecutiveToolFailures = 3;
+
     public async Task<ToolApprovalDto> CreatePendingApprovalAsync(
         Conversation conversation,
         Guid assistantMessageId,
         ToolApprovalRequest request,
         string assistantToolCallContent,
+        string? assistantReasoningContent,
         CancellationToken cancellationToken)
     {
         var entity = new ToolApprovalRequestEntity
@@ -37,6 +40,7 @@ public sealed class ToolApprovalService(
             ToolName = request.ToolName,
             ArgumentsJson = request.Arguments,
             AssistantToolCallContent = assistantToolCallContent,
+            AssistantReasoningContent = assistantReasoningContent,
             Status = ToolApprovalStatus.Pending,
             RequestedAtUtc = request.RequestedAtUtc
         };
@@ -68,7 +72,35 @@ public sealed class ToolApprovalService(
             context.Conversation.Id.ToString(),
             cancellationToken);
 
-        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildProviderToolContent(toolResult) });
+        var failureCount = await ComputeAndPersistFailureCountAsync(approval, toolResult, cancellationToken);
+
+        if (!toolResult.IsSuccess && failureCount >= MaxConsecutiveToolFailures)
+        {
+            approval.Status = ToolApprovalStatus.Failed;
+            approval.CompletedAtUtc = DateTimeOffset.UtcNow;
+
+            var abortMessage = $"Tool '{approval.ToolName}' failed {failureCount} times in a row; aborting to avoid an infinite retry loop. Please adjust your request and try again.";
+            await conversationService.UpdateMessageAsync(
+                context.AssistantMessage,
+                abortMessage,
+                false,
+                "tool_failure_cap",
+                null,
+                null,
+                context.AssistantMessage.AppliedSkillName,
+                null,
+                cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await conversationService.TouchConversationAsync(context.Conversation, cancellationToken);
+
+            return new ToolApprovalResolutionResultDto(
+                MapApproval(approval),
+                ConversationService.MapMessage(context.AssistantMessage),
+                await conversationService.MapConversationAsync(context.Conversation, cancellationToken),
+                null);
+        }
+
+        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildToolMessageContent(toolResult, approval.ToolName, failureCount) });
         var resumedTurn = await context.ChatSession.ContinueAsync(new ChatOptions
         {
             Temperature = context.Agent.Temperature,
@@ -90,6 +122,7 @@ public sealed class ToolApprovalService(
                 context.AssistantMessage.Id,
                 resumedTurn.PendingApprovalRequest,
                 resumedTurn.Response.Message?.TextContent ?? string.Empty,
+                resumedTurn.Response.Message?.ReasoningContent,
                 cancellationToken);
             approval.Status = toolResult.IsSuccess ? ToolApprovalStatus.Completed : ToolApprovalStatus.Failed;
         }
@@ -142,11 +175,31 @@ public sealed class ToolApprovalService(
                 context.Conversation.Id.ToString(),
                 cancellationToken);
 
+            var failureCount = await ComputeAndPersistFailureCountAsync(approval, toolResult, cancellationToken);
+
             approval.Status = toolResult.IsSuccess ? ToolApprovalStatus.Completed : ToolApprovalStatus.Failed;
             approval.CompletedAtUtc = DateTimeOffset.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildProviderToolContent(toolResult) });
+            if (!toolResult.IsSuccess && failureCount >= MaxConsecutiveToolFailures)
+            {
+                var abortMessage = $"Tool '{approval.ToolName}' failed {failureCount} times in a row; aborting to avoid an infinite retry loop. Please adjust your request and try again.";
+                await streamingTurnFinalizer.FinalizeCompletedAsync(
+                    context.Conversation,
+                    context.AssistantMessage,
+                    response,
+                    abortMessage,
+                    "tool_failure_cap",
+                    null,
+                    null,
+                    context.AssistantMessage.AppliedSkillName,
+                    null,
+                    async ct => await dbContext.SaveChangesAsync(ct),
+                    cancellationToken);
+                return;
+            }
+
+            context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildToolMessageContent(toolResult, approval.ToolName, failureCount) });
 
             await foreach (var update in context.ChatSession.ContinueStreamAsync(new ChatOptions
             {
@@ -175,6 +228,7 @@ public sealed class ToolApprovalService(
                             context.AssistantMessage.Id,
                             pendingApproval.PendingApprovalRequest,
                             pendingApproval.Response.Message?.TextContent ?? string.Empty,
+                            pendingApproval.Response.Message?.ReasoningContent,
                             cancellationToken);
 
                         var waitingContent = $"Tool approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
@@ -258,6 +312,7 @@ public sealed class ToolApprovalService(
         {
             Role = ChatRole.Assistant,
             TextContent = approval.AssistantToolCallContent,
+            ReasoningContent = approval.AssistantReasoningContent,
             ToolCalls =
             [
                 new ToolCall
@@ -355,6 +410,48 @@ public sealed class ToolApprovalService(
         }
 
         return toolResult;
+    }
+
+    private async Task<int> ComputeAndPersistFailureCountAsync(
+        ToolApprovalRequestEntity approval,
+        ToolResult toolResult,
+        CancellationToken cancellationToken)
+    {
+        if (toolResult.IsSuccess)
+        {
+            approval.ConsecutiveFailureCount = 0;
+            return 0;
+        }
+
+        var priorCount = (await dbContext.ToolApprovalRequests
+            .Where(x => x.ConversationId == approval.ConversationId
+                && x.ToolName == approval.ToolName
+                && x.Id != approval.Id
+                && x.CompletedAtUtc != null)
+            .Select(x => new { x.CompletedAtUtc, x.ConsecutiveFailureCount })
+            .ToListAsync(cancellationToken))
+            .OrderByDescending(x => x.CompletedAtUtc)
+            .Select(x => (int?)x.ConsecutiveFailureCount)
+            .FirstOrDefault() ?? 0;
+
+        var newCount = priorCount + 1;
+        approval.ConsecutiveFailureCount = newCount;
+        return newCount;
+    }
+
+    private static string BuildToolMessageContent(ToolResult toolResult, string toolName, int consecutiveFailureCount)
+    {
+        var rawContent = BuildProviderToolContent(toolResult);
+        if (toolResult.IsSuccess)
+        {
+            return rawContent;
+        }
+
+        var displayName = string.IsNullOrWhiteSpace(toolName) ? "tool" : toolName;
+        var header = consecutiveFailureCount > 1
+            ? $"[Tool '{displayName}' execution failed (consecutive failure {consecutiveFailureCount}). Analyze the error below and adjust your approach instead of retrying with identical arguments.]"
+            : $"[Tool '{displayName}' execution failed. Analyze the error below and adjust your approach.]";
+        return string.IsNullOrEmpty(rawContent) ? header : $"{header}\n{rawContent}";
     }
 
     private static string BuildProviderToolContent(ToolResult toolResult)
