@@ -114,6 +114,47 @@ public class AgentServiceTests
     }
 
     [Fact]
+    public async Task CreateAgentAsync_WithEmptyToolSelection_ShouldPersistNoTools()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var dbContext = await CreateDbContextAsync(connection);
+        var service = CreateService(dbContext, new InMemorySkillRegistry());
+        var model = await SeedModelAsync(dbContext);
+
+        var created = await service.CreateAgentAsync(
+            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, null, false, false, [], []),
+            CancellationToken.None);
+
+        Assert.Empty(created.SelectedToolNames);
+
+        var toolSelection = await dbContext.AgentToolSelections.SingleAsync();
+        Assert.Equal("[]", toolSelection.ToolNamesJson);
+    }
+
+    [Fact]
+    public async Task UpdateAgentAsync_WithEmptyToolSelection_ShouldClearTools()
+    {
+        await using var connection = await OpenConnectionAsync();
+        await using var dbContext = await CreateDbContextAsync(connection);
+        var service = CreateService(dbContext, new InMemorySkillRegistry());
+        var model = await SeedModelAsync(dbContext);
+
+        var created = await service.CreateAgentAsync(
+            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, null, false, false, ["read_file"], []),
+            CancellationToken.None);
+
+        var updated = await service.UpdateAgentAsync(
+            created.Id,
+            new AgentRequestDto(model.Id, "Agent", "Desc", "Prompt", 0.2, 128, null, false, false, [], []),
+            CancellationToken.None);
+
+        Assert.Empty(updated.SelectedToolNames);
+
+        var toolSelection = await dbContext.AgentToolSelections.SingleAsync();
+        Assert.Equal("[]", toolSelection.ToolNamesJson);
+    }
+
+    [Fact]
     public async Task DeleteAgentAsync_ShouldRemoveSelections()
     {
         await using var connection = await OpenConnectionAsync();

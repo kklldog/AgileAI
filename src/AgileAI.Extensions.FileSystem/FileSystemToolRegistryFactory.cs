@@ -26,7 +26,7 @@ public class FileSystemToolRegistryFactory(
     {
         if (allowedToolNames.Count == 0)
         {
-            return CreateDefaultRegistry();
+            return new InMemoryToolRegistry();
         }
 
         var allowed = new HashSet<string>(allowedToolNames, StringComparer.Ordinal);

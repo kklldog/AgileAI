@@ -120,7 +120,12 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
     public async Task<IReadOnlyList<string>> GetSelectedToolNamesAsync(Guid agentId, CancellationToken cancellationToken)
     {
         var selection = await dbContext.AgentToolSelections.FirstOrDefaultAsync(x => x.AgentDefinitionId == agentId, cancellationToken);
-        return NormalizeSelectedTools(ParseToolNames(selection?.ToolNamesJson));
+        if (selection == null)
+        {
+            return GetAllAvailableToolNames();
+        }
+
+        return NormalizeSelectedTools(ParseToolNames(selection.ToolNamesJson), treatEmptyAsAll: false);
     }
 
     public async Task<IReadOnlyList<string>> GetAllowedSkillNamesAsync(Guid agentId, CancellationToken cancellationToken)
@@ -155,7 +160,7 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
 
     private async Task SaveSelectedToolsAsync(Guid agentId, IReadOnlyList<string>? selectedToolNames, CancellationToken cancellationToken)
     {
-        var normalized = NormalizeSelectedTools(selectedToolNames);
+        var normalized = NormalizeSelectedTools(selectedToolNames, treatEmptyAsAll: false);
         var entity = await dbContext.AgentToolSelections.FirstOrDefaultAsync(x => x.AgentDefinitionId == agentId, cancellationToken);
         if (entity == null)
         {
@@ -181,17 +186,18 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private IReadOnlyList<string> NormalizeSelectedTools(IReadOnlyList<string>? selectedToolNames)
+    private IReadOnlyList<string> NormalizeSelectedTools(IReadOnlyList<string>? selectedToolNames, bool treatEmptyAsAll = true)
     {
-        var available = toolRegistryFactory.CreateDefaultRegistry()
-            .GetToolDefinitions()
-            .Select(x => x.Name)
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
+        var available = GetAllAvailableToolNames();
 
-        if (selectedToolNames == null || selectedToolNames.Count == 0)
+        if (selectedToolNames == null)
         {
             return available;
+        }
+
+        if (selectedToolNames.Count == 0)
+        {
+            return treatEmptyAsAll ? available : [];
         }
 
         return selectedToolNames
@@ -199,6 +205,13 @@ public class AgentService(StudioDbContext dbContext, ModelCatalogService modelCa
             .Distinct(StringComparer.Ordinal)
             .ToList();
     }
+
+    private IReadOnlyList<string> GetAllAvailableToolNames()
+        => toolRegistryFactory.CreateDefaultRegistry()
+            .GetToolDefinitions()
+            .Select(x => x.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
     private IReadOnlyList<string> NormalizeAllowedSkills(IReadOnlyList<string>? allowedSkillNames)
     {
