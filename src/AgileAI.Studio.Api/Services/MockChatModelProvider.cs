@@ -83,15 +83,29 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
     private static ChatResponse? BuildToolResponse(ChatRequest request)
     {
         var lastTool = request.Messages.LastOrDefault(x => x.Role == ChatRole.Tool);
+        var lastUser = request.Messages.LastOrDefault(x => x.Role == ChatRole.User)?.TextContent?.Trim() ?? string.Empty;
         if (lastTool != null)
+        {
+            if (lastUser.Contains("sequential approval", StringComparison.OrdinalIgnoreCase) &&
+                lastTool.ToolCallId == "tool-call-sequential-directory")
+            {
+                return ToolCallResponse(
+                    "write_file",
+                    "{\"path\":\"tmp/studio-sequential-approval.txt\",\"content\":\"Sequential approval completed.\"}",
+                    "tool-call-sequential-write");
+            }
+
+            return null;
+        }
+
+        if (request.Options?.Tools == null || request.Options.Tools.Count == 0 || string.IsNullOrWhiteSpace(lastUser))
         {
             return null;
         }
 
-        var lastUser = request.Messages.LastOrDefault(x => x.Role == ChatRole.User)?.TextContent?.Trim() ?? string.Empty;
-        if (request.Options?.Tools == null || request.Options.Tools.Count == 0 || string.IsNullOrWhiteSpace(lastUser))
+        if (lastUser.Contains("sequential approval", StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return ToolCallResponse("create_directory", "{\"path\":\"tmp\"}", "tool-call-sequential-directory");
         }
 
         if (lastUser.Contains("readme", StringComparison.OrdinalIgnoreCase))
@@ -128,7 +142,7 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
         return null;
     }
 
-    private static ChatResponse ToolCallResponse(string toolName, string arguments)
+    private static ChatResponse ToolCallResponse(string toolName, string arguments, string toolCallId = "tool-call-1")
         => new()
         {
             IsSuccess = true,
@@ -140,7 +154,7 @@ public class MockChatModelProvider(string providerName) : IChatModelProvider
                 [
                     new ToolCall
                     {
-                        Id = "tool-call-1",
+                        Id = toolCallId,
                         Name = toolName,
                         Arguments = arguments
                     }

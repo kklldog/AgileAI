@@ -373,6 +373,96 @@ test('mock provider chat can require command approval and resolve it from the ap
   await expect(latestAssistantBubble.locator('[data-testid^="tool-history-"]').last()).toContainText('run_local_command')
 })
 
+test('mock provider session auto approve continues through sequential file approvals', async ({ page, request }) => {
+  test.setTimeout(90_000)
+
+  const stamp = Date.now()
+  const providerName = `PW Sequential Approval Provider ${stamp}`
+  const modelName = `PW Sequential Approval Model ${stamp}`
+  const agentName = `PW Sequential Approval Agent ${stamp}`
+
+  const providerCreateResponse = await request.post('http://127.0.0.1:5117/api/provider-connections', {
+    data: {
+      name: providerName,
+      providerType: 1,
+      apiKey: 'demo-local',
+      baseUrl: 'mock://studio/v1/',
+      endpoint: null,
+      providerName: null,
+      relativePath: null,
+      apiKeyHeaderName: null,
+      authMode: null,
+      apiVersion: null,
+      isEnabled: true,
+    },
+  })
+  expect(providerCreateResponse.ok()).toBeTruthy()
+  const createdProvider = await providerCreateResponse.json()
+
+  const modelCreateResponse = await request.post('http://127.0.0.1:5117/api/models', {
+    data: {
+      providerConnectionId: createdProvider.id,
+      displayName: modelName,
+      modelKey: 'gpt-4o-mini',
+      supportsStreaming: true,
+      supportsTools: true,
+      supportsVision: false,
+      isEnabled: true,
+    },
+  })
+  expect(modelCreateResponse.ok()).toBeTruthy()
+  const createdModel = await modelCreateResponse.json()
+
+  const agentCreateResponse = await request.post('http://127.0.0.1:5117/api/agents', {
+    data: {
+      studioModelId: createdModel.id,
+      name: agentName,
+      description: 'Sequential approval flow agent.',
+      systemPrompt: 'Use tools when necessary.',
+      temperature: 0.2,
+      maxTokens: 256,
+      thinkingIntensity: null,
+      enableSkills: false,
+      isPinned: false,
+      selectedToolNames: ['create_directory', 'write_file'],
+      allowedSkillNames: [],
+    },
+  })
+  expect(agentCreateResponse.ok()).toBeTruthy()
+  const createdAgent = await agentCreateResponse.json()
+
+  const conversationCreateResponse = await request.post('http://127.0.0.1:5117/api/conversations', {
+    data: {
+      agentId: createdAgent.id,
+      title: 'Sequential Approval Session',
+    },
+  })
+  expect(conversationCreateResponse.ok()).toBeTruthy()
+  const createdConversation = await conversationCreateResponse.json()
+
+  await page.goto(`/chat?agentId=${createdAgent.id}`)
+  await expect(page.getByTestId('chat-input')).toBeVisible()
+  await page.locator(`[data-testid="conversation-${createdConversation.id}"]`).click()
+
+  await page.getByTestId('chat-input').locator('textarea').fill('Please perform sequential approval file generation')
+  await page.getByTestId('send-message').click()
+
+  const approvalModal = page.getByTestId('approval-modal')
+  await expect(approvalModal).toBeVisible({ timeout: 30_000 })
+  await expect(approvalModal).toContainText('create_directory')
+  await page.getByTestId('approval-auto-approve').click()
+  await approvalModal.locator('[data-testid^="approval-approve-"]').click()
+
+  await expect(page.getByTestId('approval-modal')).toBeHidden({ timeout: 30_000 })
+
+  const assistantBubble = page.locator('[data-testid="message-assistant"]').last()
+  await expect(assistantBubble).toContainText(/workspace tool completed successfully/i, { timeout: 30_000 })
+  await expect(assistantBubble).toContainText(/Wrote 30 characters to tmp\/studio-sequential-approval.txt/i, { timeout: 30_000 })
+  await expect(assistantBubble.locator('[data-testid^="tool-history-"]')).toHaveCount(2)
+  await expect(assistantBubble.locator('[data-testid^="tool-history-"]').first()).toContainText('create_directory')
+  await expect(assistantBubble.locator('[data-testid^="tool-history-"]').last()).toContainText('write_file')
+})
+
 test('agent allowed skills restrict which skill can become active', async ({ page, request }) => {
   test.setTimeout(90_000)
 
