@@ -180,6 +180,7 @@ public class ToolApprovalServiceTests
                 RequestedAtUtc = now
             },
             "I want to run a command.",
+            null,
             CancellationToken.None);
 
         var resolved = await toolApprovalService.ResolveApprovalAsync(created.Id, false, "Denied for test", CancellationToken.None);

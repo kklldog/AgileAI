@@ -109,6 +109,7 @@ public class StudioDbContext(DbContextOptions<StudioDbContext> options) : DbCont
             entity.Property(x => x.ToolName).HasMaxLength(120);
             entity.Property(x => x.ArgumentsJson).HasMaxLength(32000);
             entity.Property(x => x.AssistantToolCallContent).HasMaxLength(32000);
+            entity.Property(x => x.AssistantReasoningContent).HasMaxLength(32000);
             entity.Property(x => x.DecisionComment).HasMaxLength(2000);
             entity.Property(x => x.ResultContent).HasMaxLength(32000);
             entity.Property(x => x.StandardOutput).HasMaxLength(32000);

@@ -13,6 +13,7 @@ public class ChatSession : IChatSession
     private readonly List<ChatMessage> _history = new();
     private readonly IToolRegistry? _toolRegistry;
     private readonly int _maxToolLoopIterations;
+    private readonly int _maxConsecutiveToolFailures;
     private readonly IToolExecutionGate _toolExecutionGate;
     private readonly string? _sessionId;
     private readonly string? _conversationId;
@@ -36,12 +37,14 @@ public class ChatSession : IChatSession
         ILogger<ChatSession>? logger = null,
         IEnumerable<IChatTurnMiddleware>? chatTurnMiddlewares = null,
         IEnumerable<IStreamingChatTurnMiddleware>? streamingChatTurnMiddlewares = null,
-        IEnumerable<IToolExecutionMiddleware>? toolExecutionMiddlewares = null)
+        IEnumerable<IToolExecutionMiddleware>? toolExecutionMiddlewares = null,
+        int maxConsecutiveToolFailures = 3)
     {
         _chatClient = chatClient;
         _modelId = modelId;
         _toolRegistry = toolRegistry;
         _maxToolLoopIterations = maxToolLoopIterations;
+        _maxConsecutiveToolFailures = maxConsecutiveToolFailures > 0 ? maxConsecutiveToolFailures : int.MaxValue;
         _toolExecutionGate = toolExecutionGate ?? new AutoApproveToolExecutionGate();
         _sessionId = sessionId;
         _conversationId = conversationId;
@@ -183,6 +186,7 @@ public class ChatSession : IChatSession
         ChatResponse? lastResponse = null;
         List<ToolResult>? lastToolResults = null;
         var iteration = 0;
+        var consecutiveFailures = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         while (iteration < _maxToolLoopIterations)
         {
@@ -259,14 +263,38 @@ public class ChatSession : IChatSession
 
             lastToolResults = toolResults;
 
-            foreach (var result in toolResults)
+            string? abortToolName = null;
+            for (var i = 0; i < toolResults.Count; i++)
             {
+                var result = toolResults[i];
+                var toolName = i < toolCalls.Count ? toolCalls[i].Name : string.Empty;
+                var failureCount = UpdateConsecutiveFailureCount(consecutiveFailures, toolName, result.IsSuccess);
                 _history.Add(new ChatMessage
                 {
                     Role = ChatRole.Tool,
                     ToolCallId = result.ToolCallId,
-                    TextContent = result.Content
+                    TextContent = BuildToolMessageContent(toolName, result, failureCount)
                 });
+
+                if (!result.IsSuccess && failureCount >= _maxConsecutiveToolFailures && abortToolName == null)
+                {
+                    abortToolName = toolName;
+                }
+            }
+
+            if (abortToolName != null)
+            {
+                _logger?.LogError("ChatSession aborting after {Failures} consecutive failures of tool '{ToolName}'",
+                    _maxConsecutiveToolFailures, abortToolName);
+                return new ChatTurnResult
+                {
+                    Response = new ChatResponse
+                    {
+                        IsSuccess = false,
+                        ErrorMessage = $"Tool '{abortToolName}' failed {_maxConsecutiveToolFailures} times in a row; aborting to avoid an infinite retry loop."
+                    },
+                    ToolResults = lastToolResults
+                };
             }
 
             iteration++;
@@ -309,6 +337,7 @@ public class ChatSession : IChatSession
         List<ToolResult>? lastToolResults = null;
         List<string>? lastToolNames = null;
         var iteration = 0;
+        var consecutiveFailures = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         while (iteration < _maxToolLoopIterations)
         {
@@ -422,14 +451,35 @@ public class ChatSession : IChatSession
             lastToolResults = toolResults;
             lastToolNames = toolNames;
 
-            foreach (var result in toolResults)
+            string? abortToolName = null;
+            for (var i = 0; i < toolResults.Count; i++)
             {
+                var result = toolResults[i];
+                var toolName = i < toolNames.Count ? toolNames[i] : string.Empty;
+                var failureCount = UpdateConsecutiveFailureCount(consecutiveFailures, toolName, result.IsSuccess);
                 _history.Add(new ChatMessage
                 {
                     Role = ChatRole.Tool,
                     ToolCallId = result.ToolCallId,
-                    TextContent = result.Content
+                    TextContent = BuildToolMessageContent(toolName, result, failureCount)
                 });
+
+                if (!result.IsSuccess && failureCount >= _maxConsecutiveToolFailures && abortToolName == null)
+                {
+                    abortToolName = toolName;
+                }
+            }
+
+            if (abortToolName != null)
+            {
+                _logger?.LogError("ChatSession streaming aborting after {Failures} consecutive failures of tool '{ToolName}'",
+                    _maxConsecutiveToolFailures, abortToolName);
+                yield return new ChatTurnCompleted(new ChatResponse
+                {
+                    IsSuccess = false,
+                    ErrorMessage = $"Tool '{abortToolName}' failed {_maxConsecutiveToolFailures} times in a row; aborting to avoid an infinite retry loop."
+                }, lastToolResults, lastToolNames);
+                yield break;
             }
 
             iteration++;
@@ -454,6 +504,7 @@ public class ChatSession : IChatSession
         };
 
         var assistantBuilder = new StringBuilder();
+        var reasoningBuilder = new StringBuilder();
         string? finishReason = null;
         UsageInfo? usage = null;
         var toolCallAccumulators = new Dictionary<string, ToolCallAccumulator>(StringComparer.Ordinal);
@@ -466,6 +517,9 @@ public class ChatSession : IChatSession
                 case TextDeltaUpdate textDelta:
                     assistantBuilder.Append(textDelta.Delta);
                     yield return new ChatTurnTextDelta(textDelta.Delta);
+                    break;
+                case ReasoningDeltaUpdate reasoningDelta:
+                    reasoningBuilder.Append(reasoningDelta.Delta);
                     break;
                 case ToolCallDeltaUpdate toolCallDelta:
                     var toolCallId = string.IsNullOrWhiteSpace(toolCallDelta.ToolCallId)
@@ -511,11 +565,41 @@ public class ChatSession : IChatSession
             {
                 Role = ChatRole.Assistant,
                 TextContent = assistantBuilder.ToString(),
-                ToolCalls = toolCalls
+                ToolCalls = toolCalls,
+                ReasoningContent = reasoningBuilder.Length == 0 ? null : reasoningBuilder.ToString()
             },
             Usage = usage,
             FinishReason = finishReason
         });
+    }
+
+    private static int UpdateConsecutiveFailureCount(IDictionary<string, int> tracker, string toolName, bool success)
+    {
+        var key = string.IsNullOrWhiteSpace(toolName) ? "<unknown>" : toolName;
+        if (success)
+        {
+            tracker[key] = 0;
+            return 0;
+        }
+
+        tracker.TryGetValue(key, out var current);
+        current++;
+        tracker[key] = current;
+        return current;
+    }
+
+    private static string BuildToolMessageContent(string toolName, ToolResult result, int consecutiveFailureCount)
+    {
+        if (result.IsSuccess)
+        {
+            return result.Content ?? string.Empty;
+        }
+
+        var displayName = string.IsNullOrWhiteSpace(toolName) ? "tool" : toolName;
+        var header = consecutiveFailureCount > 1
+            ? $"[Tool '{displayName}' execution failed (consecutive failure {consecutiveFailureCount}). Analyze the error below and adjust your approach instead of retrying with identical arguments.]"
+            : $"[Tool '{displayName}' execution failed. Analyze the error below and adjust your approach.]";
+        return string.IsNullOrEmpty(result.Content) ? header : $"{header}\n{result.Content}";
     }
 
     private sealed class ToolCallAccumulator(string id)

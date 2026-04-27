@@ -7,6 +7,7 @@ public class ChatSessionBuilder(IChatClient chatClient, string modelId)
 {
     private IToolRegistry? _toolRegistry;
     private int _maxToolLoopIterations = 5;
+    private int _maxConsecutiveToolFailures = 3;
     private IServiceProvider? _serviceProvider;
     private ILogger<ChatSession>? _logger;
     private IReadOnlyList<ChatMessage> _history = [];
@@ -26,6 +27,12 @@ public class ChatSessionBuilder(IChatClient chatClient, string modelId)
     public ChatSessionBuilder WithMaxToolLoopIterations(int maxToolLoopIterations)
     {
         _maxToolLoopIterations = maxToolLoopIterations;
+        return this;
+    }
+
+    public ChatSessionBuilder WithMaxConsecutiveToolFailures(int maxConsecutiveToolFailures)
+    {
+        _maxConsecutiveToolFailures = maxConsecutiveToolFailures;
         return this;
     }
 
@@ -103,7 +110,8 @@ public class ChatSessionBuilder(IChatClient chatClient, string modelId)
             _logger,
             _chatTurnMiddlewares,
             _streamingChatTurnMiddlewares,
-            _toolExecutionMiddlewares);
+            _toolExecutionMiddlewares,
+            _maxConsecutiveToolFailures);
 
         foreach (var message in _history)
         {

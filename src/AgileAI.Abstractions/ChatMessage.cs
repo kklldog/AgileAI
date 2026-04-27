@@ -8,6 +8,12 @@ public record ChatMessage
     public string? ToolCallId { get; init; }
     public IReadOnlyList<ToolCall>? ToolCalls { get; init; }
 
+    /// <summary>
+    /// Optional chain-of-thought content returned by reasoning-capable models (e.g. DeepSeek thinking mode).
+    /// Must be passed back to the API on subsequent turns when the assistant message also contains tool calls.
+    /// </summary>
+    public string? ReasoningContent { get; init; }
+
     public static ChatMessage FromText(ChatRole role, string text) => new()
     {
         Role = role,

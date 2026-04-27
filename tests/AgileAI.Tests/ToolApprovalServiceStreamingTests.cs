@@ -29,6 +29,7 @@ public class ToolApprovalServiceStreamingTests
                 RequestedAtUtc = DateTimeOffset.UtcNow
             },
             "I want to run a command.",
+            null,
             CancellationToken.None);
         var httpContext = new DefaultHttpContext();
         httpContext.Response.Body = new MemoryStream();

@@ -70,6 +70,7 @@ public class AgentExecutionService(
                     assistant.Id,
                     turn.PendingApprovalRequest,
                     response.Message?.TextContent ?? string.Empty,
+                    response.Message?.ReasoningContent,
                     cancellationToken);
             }
 
@@ -404,6 +405,7 @@ public class AgentExecutionService(
                         assistant.Id,
                         pendingApproval.PendingApprovalRequest,
                         pendingApproval.Response.Message?.TextContent ?? string.Empty,
+                        pendingApproval.Response.Message?.ReasoningContent,
                         cancellationToken);
 
                     await streamingTurnFinalizer.FinalizePendingApprovalAsync(
