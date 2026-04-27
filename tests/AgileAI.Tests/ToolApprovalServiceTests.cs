@@ -1,6 +1,7 @@
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
 using AgileAI.Studio.Api.Services;
+using AgileAI.Abstractions;
 using AgileAI.Core;
 using AgileAI.Extensions.FileSystem;
 using Microsoft.Data.Sqlite;
@@ -12,6 +13,31 @@ namespace AgileAI.Tests;
 
 public class ToolApprovalServiceTests
 {
+    [Fact]
+    public void BuildProviderToolContent_WithProcessResult_ShouldReturnPlainTextSummary()
+    {
+        var toolResult = new ToolResult
+        {
+            ToolCallId = "call-1",
+            IsSuccess = true,
+            Status = ToolExecutionStatus.Completed,
+            Content = "{\"shell\":\"bash\",\"command\":\"pwd\",\"exitCode\":0,\"stdout\":\"/tmp\\n\",\"stderr\":\"\",\"durationMs\":1,\"timedOut\":false}",
+            Data = new ProcessExecutionResult("bash", "pwd", 0, "/tmp\n", string.Empty, 1, false)
+        };
+
+        var method = typeof(ToolApprovalService).GetMethod("BuildProviderToolContent", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("BuildProviderToolContent was not found.");
+
+        var content = Assert.IsType<string>(method.Invoke(null, [toolResult]));
+
+        Assert.Contains("Command: pwd", content);
+        Assert.Contains("Shell: bash", content);
+        Assert.Contains("Exit code: 0", content);
+        Assert.Contains("Stdout:", content);
+        Assert.Contains("/tmp", content);
+        Assert.DoesNotContain("{\"shell\"", content);
+    }
+
     [Fact]
     public async Task ResolveApprovalAsync_Deny_ShouldPersistDecisionAndReturnUpdatedAssistantMessage()
     {

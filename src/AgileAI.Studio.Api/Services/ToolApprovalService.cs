@@ -3,7 +3,9 @@ using AgileAI.Core;
 using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Data;
 using AgileAI.Studio.Api.Domain;
+using AgileAI.Providers.OpenAICompatible;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace AgileAI.Studio.Api.Services;
 
@@ -66,12 +68,13 @@ public sealed class ToolApprovalService(
             context.Conversation.Id.ToString(),
             cancellationToken);
 
-        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
+        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildProviderToolContent(toolResult) });
         var resumedTurn = await context.ChatSession.ContinueAsync(new ChatOptions
         {
             Temperature = context.Agent.Temperature,
             MaxTokens = context.Agent.MaxTokens,
-            ThinkingIntensity = context.Agent.ThinkingIntensity
+            ThinkingIntensity = context.Agent.ThinkingIntensity,
+            ProviderOptions = DeepSeekProviderOptions.Build(context.Conversation.AgentDefinition?.StudioModel?.ProviderConnection, includeTools: true)
         }, cancellationToken);
 
         if (!resumedTurn.Response.IsSuccess)
@@ -101,7 +104,7 @@ public sealed class ToolApprovalService(
             context.AssistantMessage,
             resumedTurn.PendingApprovalRequest == null
                 ? resumedTurn.Response.Message?.TextContent ?? string.Empty
-                : $"Command approval required for {resumedTurn.PendingApprovalRequest.ToolName}.",
+                : $"Tool approval required for {resumedTurn.PendingApprovalRequest.ToolName}.",
             false,
             resumedTurn.Response.FinishReason,
             resumedTurn.Response.Usage?.PromptTokens,
@@ -125,95 +128,101 @@ public sealed class ToolApprovalService(
         response.Headers.ContentType = "text/event-stream";
         response.Headers.CacheControl = "no-cache";
 
-        var context = await LoadApprovalExecutionContextAsync(approvalId, cancellationToken);
-        var approval = context.Approval;
-
-        var toolResult = await ResolveToolResultAsync(
-            approval,
-            approved,
-            comment,
-            context.ToolRegistry,
-            context.ChatSession,
-            context.Conversation.Id.ToString(),
-            cancellationToken);
-
-        context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = toolResult.Content });
-
-        await foreach (var update in context.ChatSession.ContinueStreamAsync(new ChatOptions
+        try
         {
-            Temperature = context.Agent.Temperature,
-            MaxTokens = context.Agent.MaxTokens,
-            ThinkingIntensity = context.Agent.ThinkingIntensity
-        }, cancellationToken))
-        {
-            switch (update)
+            var context = await LoadApprovalExecutionContextAsync(approvalId, cancellationToken);
+            var approval = context.Approval;
+
+            var toolResult = await ResolveToolResultAsync(
+                approval,
+                approved,
+                comment,
+                context.ToolRegistry,
+                context.ChatSession,
+                context.Conversation.Id.ToString(),
+                cancellationToken);
+
+            approval.Status = toolResult.IsSuccess ? ToolApprovalStatus.Completed : ToolApprovalStatus.Failed;
+            approval.CompletedAtUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            context.ChatSession.AddMessage(new ChatMessage { Role = ChatRole.Tool, ToolCallId = approval.ToolCallId, TextContent = BuildProviderToolContent(toolResult) });
+
+            await foreach (var update in context.ChatSession.ContinueStreamAsync(new ChatOptions
             {
-                case ChatTurnTextDelta textDelta:
-                    await StudioSseWriter.WriteAsync(response, "text-delta", new { delta = textDelta.Delta }, cancellationToken);
-                    break;
-                case ChatTurnUsage usage:
-                    await StudioSseWriter.WriteAsync(response, "usage", new
-                    {
-                        inputTokens = usage.Usage.PromptTokens,
-                        outputTokens = usage.Usage.CompletionTokens
-                    }, cancellationToken);
-                    break;
-                case ChatTurnPendingApproval pendingApproval:
+                Temperature = context.Agent.Temperature,
+                MaxTokens = context.Agent.MaxTokens,
+                ThinkingIntensity = context.Agent.ThinkingIntensity,
+                ProviderOptions = DeepSeekProviderOptions.Build(context.Conversation.AgentDefinition?.StudioModel?.ProviderConnection, includeTools: true)
+            }, cancellationToken))
+            {
+                switch (update)
                 {
-                    var pendingApprovalDto = await CreatePendingApprovalAsync(
-                        context.Conversation,
-                        context.AssistantMessage.Id,
-                        pendingApproval.PendingApprovalRequest,
-                        pendingApproval.Response.Message?.TextContent ?? string.Empty,
-                        cancellationToken);
-
-                    approval.Status = toolResult.IsSuccess ? ToolApprovalStatus.Completed : ToolApprovalStatus.Failed;
-                    approval.CompletedAtUtc = DateTimeOffset.UtcNow;
-
-                    var waitingContent = $"Command approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
-                    await streamingTurnFinalizer.FinalizePendingApprovalAsync(
-                        context.Conversation,
-                        context.AssistantMessage,
-                        response,
-                        waitingContent,
-                        pendingApprovalDto,
-                        context.AssistantMessage.AppliedSkillName,
-                        pendingApproval.ToolNames,
-                        async ct => await dbContext.SaveChangesAsync(ct),
-                        cancellationToken);
-                    return;
-                }
-                case ChatTurnCompleted completed:
-                {
-                    if (!completed.Response.IsSuccess)
+                    case ChatTurnTextDelta textDelta:
+                        await StudioSseWriter.WriteAsync(response, "text-delta", new { delta = textDelta.Delta }, cancellationToken);
+                        break;
+                    case ChatTurnUsage usage:
+                        await StudioSseWriter.WriteAsync(response, "usage", new
+                        {
+                            inputTokens = usage.Usage.PromptTokens,
+                            outputTokens = usage.Usage.CompletionTokens
+                        }, cancellationToken);
+                        break;
+                    case ChatTurnPendingApproval pendingApproval:
                     {
-                        throw new InvalidOperationException(completed.Response.ErrorMessage ?? "Failed to resume chat after tool approval.");
+                        var pendingApprovalDto = await CreatePendingApprovalAsync(
+                            context.Conversation,
+                            context.AssistantMessage.Id,
+                            pendingApproval.PendingApprovalRequest,
+                            pendingApproval.Response.Message?.TextContent ?? string.Empty,
+                            cancellationToken);
+
+                        var waitingContent = $"Tool approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
+                        await streamingTurnFinalizer.FinalizePendingApprovalAsync(
+                            context.Conversation,
+                            context.AssistantMessage,
+                            response,
+                            waitingContent,
+                            pendingApprovalDto,
+                            context.AssistantMessage.AppliedSkillName,
+                            pendingApproval.ToolNames,
+                            async ct => await dbContext.SaveChangesAsync(ct),
+                            cancellationToken);
+                        return;
                     }
+                    case ChatTurnCompleted completed:
+                    {
+                        if (!completed.Response.IsSuccess)
+                        {
+                            throw new InvalidOperationException(completed.Response.ErrorMessage ?? "Failed to resume chat after tool approval.");
+                        }
 
-                    approval.Status = toolResult.IsSuccess ? ToolApprovalStatus.Completed : ToolApprovalStatus.Failed;
-                    approval.CompletedAtUtc = DateTimeOffset.UtcNow;
-
-                    var finalContent = completed.Response.Message?.TextContent ?? string.Empty;
-                    await streamingTurnFinalizer.FinalizeCompletedAsync(
-                        context.Conversation,
-                        context.AssistantMessage,
-                        response,
-                        finalContent,
-                        completed.Response.FinishReason,
-                        completed.Response.Usage?.PromptTokens,
-                        completed.Response.Usage?.CompletionTokens,
-                        context.AssistantMessage.AppliedSkillName,
-                        completed.ToolNames,
-                        async ct => await dbContext.SaveChangesAsync(ct),
-                        cancellationToken);
-                    return;
+                        var finalContent = completed.Response.Message?.TextContent ?? string.Empty;
+                        await streamingTurnFinalizer.FinalizeCompletedAsync(
+                            context.Conversation,
+                            context.AssistantMessage,
+                            response,
+                            finalContent,
+                            completed.Response.FinishReason,
+                            completed.Response.Usage?.PromptTokens,
+                            completed.Response.Usage?.CompletionTokens,
+                            context.AssistantMessage.AppliedSkillName,
+                            completed.ToolNames,
+                            async ct => await dbContext.SaveChangesAsync(ct),
+                            cancellationToken);
+                        return;
+                    }
+                    case ChatTurnError error:
+                        throw new InvalidOperationException(error.ErrorMessage);
                 }
-                case ChatTurnError error:
-                    throw new InvalidOperationException(error.ErrorMessage);
             }
-        }
 
-        throw new InvalidOperationException("Approval resume stream ended without a terminal update.");
+            throw new InvalidOperationException("Approval resume stream ended without a terminal update.");
+        }
+        catch (Exception ex)
+        {
+            await StudioSseWriter.WriteAsync(response, "error", new { message = ex.Message }, cancellationToken);
+        }
     }
 
     private static IReadOnlyList<ChatMessage> BuildResumeHistory(Conversation conversation, Guid assistantPlaceholderId, ToolApprovalRequestEntity approval)
@@ -226,6 +235,11 @@ public sealed class ToolApprovalService(
         foreach (var message in conversation.Messages.OrderBy(x => x.CreatedAtUtc))
         {
             if (message.Id == assistantPlaceholderId)
+            {
+                continue;
+            }
+
+            if (message.Role == MessageRole.Assistant && AgentExecutionService.ShouldSkipAssistantMessageFromHistory(message.Content))
             {
                 continue;
             }
@@ -299,13 +313,26 @@ public sealed class ToolApprovalService(
             }
 
             var toolCall = new ToolCall { Id = approval.ToolCallId, Name = approval.ToolName, Arguments = approval.ArgumentsJson };
-            toolResult = await tool.ExecuteAsync(new ToolExecutionContext
+            try
             {
-                ToolCall = toolCall,
-                ChatHistory = chatSession.History,
-                ConversationId = conversationId,
-                ServiceProvider = null
-            }, cancellationToken);
+                toolResult = await tool.ExecuteAsync(new ToolExecutionContext
+                {
+                    ToolCall = toolCall,
+                    ChatHistory = chatSession.History,
+                    ConversationId = conversationId,
+                    ServiceProvider = null
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                toolResult = new ToolResult
+                {
+                    ToolCallId = approval.ToolCallId,
+                    IsSuccess = false,
+                    Status = ToolExecutionStatus.Failed,
+                    Content = $"Error executing tool '{approval.ToolName}': {ex.Message}"
+                };
+            }
         }
         else
         {
@@ -328,6 +355,34 @@ public sealed class ToolApprovalService(
         }
 
         return toolResult;
+    }
+
+    private static string BuildProviderToolContent(ToolResult toolResult)
+    {
+        if (toolResult.Data is ProcessExecutionResult processResult)
+        {
+            var builder = new StringBuilder()
+                .AppendLine($"Command: {processResult.Command}")
+                .AppendLine($"Shell: {processResult.Shell}")
+                .AppendLine($"Exit code: {processResult.ExitCode}")
+                .AppendLine($"Timed out: {processResult.TimedOut.ToString().ToLowerInvariant()}");
+
+            if (!string.IsNullOrWhiteSpace(processResult.StandardOutput))
+            {
+                builder.AppendLine("Stdout:")
+                    .AppendLine(processResult.StandardOutput.TrimEnd());
+            }
+
+            if (!string.IsNullOrWhiteSpace(processResult.StandardError))
+            {
+                builder.AppendLine("Stderr:")
+                    .AppendLine(processResult.StandardError.TrimEnd());
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+
+        return toolResult.Content;
     }
 
     private async Task<ApprovalExecutionContext> LoadApprovalExecutionContextAsync(Guid approvalId, CancellationToken cancellationToken)
