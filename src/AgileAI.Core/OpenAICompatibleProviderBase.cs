@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AgileAI.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -162,6 +163,7 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
 
     protected OpenAICompatibleChatCompletionRequest CreateBaseRequest(ChatRequest request, bool stream, bool includeModel)
     {
+        var providerOptions = request.Options?.ProviderOptions as OpenAICompatibleProviderRequestOptions;
         var providerRequest = new OpenAICompatibleChatCompletionRequest
         {
             Stream = stream,
@@ -171,6 +173,7 @@ public abstract class OpenAICompatibleProviderBase : IChatModelProvider
             TopP = request.Options?.TopP,
             MaxTokens = request.Options?.MaxTokens,
             ReasoningEffort = NormalizeThinkingIntensity(request.Options?.ThinkingIntensity),
+            Thinking = providerOptions?.Thinking,
             Stop = request.Options?.StopSequences
         };
 
@@ -318,14 +321,26 @@ public class OpenAICompatibleChatCompletionRequest
     public double? TopP { get; set; }
     public int? MaxTokens { get; set; }
     public string? ReasoningEffort { get; set; }
+    public OpenAICompatibleThinkingOptions? Thinking { get; set; }
     public IReadOnlyList<string>? Stop { get; set; }
     public List<OpenAICompatibleToolDefinition>? Tools { get; set; }
     public bool? Stream { get; set; }
 }
 
+public sealed class OpenAICompatibleProviderRequestOptions
+{
+    public OpenAICompatibleThinkingOptions? Thinking { get; init; }
+}
+
+public sealed class OpenAICompatibleThinkingOptions
+{
+    public string? Type { get; init; }
+}
+
 public class OpenAICompatibleMessage
 {
     public string Role { get; set; } = string.Empty;
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
     public string? Content { get; set; }
     public string? ToolCallId { get; set; }
     public List<OpenAICompatibleToolCall>? ToolCalls { get; set; }

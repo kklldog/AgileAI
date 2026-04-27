@@ -3,6 +3,7 @@ using AgileAI.Core;
 using AgileAI.Extensions.FileSystem;
 using AgileAI.Studio.Api.Contracts;
 using AgileAI.Studio.Api.Domain;
+using AgileAI.Providers.OpenAICompatible;
 using System.Text;
 
 namespace AgileAI.Studio.Api.Services;
@@ -38,12 +39,7 @@ public class AgentExecutionService(
         async Task<ChatResultDto> ExecuteStudioChatSessionFallbackAsync()
         {
             var session = await CreateSessionAsync(conversation, agent, runtime.RuntimeModelId, chatClient, BuildRequestHistory(conversation, agent), cancellationToken);
-            var turn = await session.SendTurnAsync(trimmedContent, new ChatOptions
-            {
-                Temperature = agent.Temperature,
-                MaxTokens = agent.MaxTokens,
-                ThinkingIntensity = agent.ThinkingIntensity
-            }, cancellationToken);
+            var turn = await session.SendTurnAsync(trimmedContent, BuildAgentChatOptions(agent, agent.StudioModel?.ProviderConnection, includeTools: true), cancellationToken);
 
             var response = turn.Response;
 
@@ -54,7 +50,7 @@ public class AgentExecutionService(
 
             var assistantText = turn.PendingApprovalRequest == null
                 ? response.Message?.TextContent ?? string.Empty
-                : $"Command approval required for {turn.PendingApprovalRequest.ToolName}.";
+                : $"Tool approval required for {turn.PendingApprovalRequest.ToolName}.";
             var assistant = await conversationService.AddMessageAsync(
                 conversation.Id,
                 MessageRole.Assistant,
@@ -225,7 +221,7 @@ public class AgentExecutionService(
         }
         catch (Exception ex)
         {
-            await conversationService.UpdateMessageAsync(assistant, ex.Message, false, null, null, null, null, null, cancellationToken);
+            await conversationService.UpdateMessageAsync(assistant, string.Empty, false, null, null, null, null, null, cancellationToken);
             await StudioSseWriter.WriteAsync(response, "error", new { message = ex.Message }, cancellationToken);
         }
     }
@@ -291,7 +287,8 @@ public class AgentExecutionService(
             {
                 Temperature = conversation.AgentDefinition?.Temperature,
                 MaxTokens = conversation.AgentDefinition?.MaxTokens,
-                ThinkingIntensity = conversation.AgentDefinition?.ThinkingIntensity
+                ThinkingIntensity = conversation.AgentDefinition?.ThinkingIntensity,
+                ProviderOptions = DeepSeekProviderOptions.Build(conversation.AgentDefinition?.StudioModel?.ProviderConnection, includeTools: false)
             }
         }, cancellationToken))
         {
@@ -383,12 +380,7 @@ public class AgentExecutionService(
         string? activeSkill,
         IReadOnlyDictionary<string, object?>? metadata)
     {
-        await foreach (var update in session.StreamTurnAsync(userContent, new ChatOptions
-        {
-            Temperature = conversation.AgentDefinition?.Temperature,
-            MaxTokens = conversation.AgentDefinition?.MaxTokens,
-            ThinkingIntensity = conversation.AgentDefinition?.ThinkingIntensity
-        }, cancellationToken))
+        await foreach (var update in session.StreamTurnAsync(userContent, BuildConversationChatOptions(conversation, metadata, includeTools: true), cancellationToken))
         {
             switch (update)
             {
@@ -405,7 +397,7 @@ public class AgentExecutionService(
                 case ChatTurnPendingApproval pendingApproval:
                     await PersistConversationStateAsync(conversation, session.History, activeSkill, metadata, cancellationToken);
 
-                    var waitingContent = $"Command approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
+                    var waitingContent = $"Tool approval required for {pendingApproval.PendingApprovalRequest.ToolName}.";
 
                     var approval = await toolApprovalService.CreatePendingApprovalAsync(
                         conversation,
@@ -519,16 +511,27 @@ public class AgentExecutionService(
             history,
             cancellationToken);
 
-    public static string BuildSystemPrompt(string basePrompt)
-        => string.Join(
-            Environment.NewLine + Environment.NewLine,
-            new[]
-            {
-                basePrompt.Trim(),
+    public static string BuildSystemPrompt(string basePrompt, bool includeToolInstructions = true)
+    {
+        var sections = new List<string>
+        {
+            basePrompt.Trim()
+        };
+
+        if (includeToolInstructions)
+        {
+            sections.AddRange(
+            [
                 "You have access to workspace tools inside the AgileAI repository.",
                 "Use list_directory or search_files before guessing file paths, use read_file or read_files_batch to inspect text files, and use write_file only when creating or updating workspace files is necessary.",
                 "Never claim to have read or written a file unless you actually used the tool."
-            }.Where(x => string.IsNullOrWhiteSpace(x) == false));
+            ]);
+        }
+
+        return string.Join(
+            Environment.NewLine + Environment.NewLine,
+            sections.Where(x => string.IsNullOrWhiteSpace(x) == false));
+    }
 
     private static ChatOptions BuildAgentChatOptions(AgentDefinition agent)
         => new()
@@ -537,6 +540,60 @@ public class AgentExecutionService(
             MaxTokens = agent.MaxTokens,
             ThinkingIntensity = agent.ThinkingIntensity
         };
+
+    private static ChatOptions BuildAgentChatOptions(AgentDefinition agent, ProviderConnection? providerConnection, bool includeTools)
+        => new()
+        {
+            Temperature = agent.Temperature,
+            MaxTokens = agent.MaxTokens,
+            ThinkingIntensity = agent.ThinkingIntensity,
+            ProviderOptions = DeepSeekProviderOptions.Build(providerConnection, includeTools)
+        };
+
+    private static ChatOptions BuildConversationChatOptions(Conversation conversation, IReadOnlyDictionary<string, object?>? metadata, bool includeTools)
+    {
+        return new ChatOptions
+        {
+            Temperature = conversation.AgentDefinition?.Temperature,
+            MaxTokens = conversation.AgentDefinition?.MaxTokens,
+            ThinkingIntensity = conversation.AgentDefinition?.ThinkingIntensity,
+            ProviderOptions = DeepSeekProviderOptions.Build(ResolveProviderConnection(conversation, metadata), includeTools)
+        };
+    }
+
+    private static ProviderType ResolveProviderType(Conversation conversation, IReadOnlyDictionary<string, object?>? metadata)
+    {
+        if (metadata != null && metadata.TryGetValue("providerType", out var rawProviderType))
+        {
+            if (rawProviderType is ProviderType typed)
+            {
+                return typed;
+            }
+
+            if (Enum.TryParse<ProviderType>(rawProviderType?.ToString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return ResolveProviderType(conversation);
+    }
+
+    private static ProviderType ResolveProviderType(Conversation conversation)
+        => conversation.AgentDefinition?.StudioModel?.ProviderConnection?.ProviderType ?? ProviderType.OpenAICompatible;
+
+    private static ProviderConnection? ResolveProviderConnection(Conversation conversation, IReadOnlyDictionary<string, object?>? metadata)
+    {
+        var providerConnection = conversation.AgentDefinition?.StudioModel?.ProviderConnection;
+        if (providerConnection == null || metadata == null || !metadata.TryGetValue("providerType", out var rawProviderType))
+        {
+            return providerConnection;
+        }
+
+        var providerType = ResolveProviderType(conversation, metadata);
+        providerConnection.ProviderType = providerType;
+        return providerConnection;
+    }
 
     private async Task TryGenerateConversationTitleAsync(Conversation conversation, string userContent, string assistantContent, CancellationToken cancellationToken)
     {
@@ -627,15 +684,20 @@ public class AgentExecutionService(
         return title.TrimEnd('.', '。', ',', '，', ':', '：', ';', '；', '!', '！', '?', '？');
     }
 
-    internal static IReadOnlyList<ChatMessage> BuildRequestHistory(Conversation conversation, AgentDefinition agent)
+    public static IReadOnlyList<ChatMessage> BuildRequestHistory(Conversation conversation, AgentDefinition agent)
     {
         var history = new List<ChatMessage>
         {
-            ChatMessage.System(BuildSystemPrompt(agent.SystemPrompt))
+            ChatMessage.System(BuildSystemPrompt(agent.SystemPrompt, includeToolInstructions: HasToolMessages(conversation.Messages)))
         };
 
         foreach (var message in conversation.Messages.OrderBy(x => x.CreatedAtUtc))
         {
+            if (message.Role == MessageRole.Assistant && ShouldSkipAssistantMessageFromHistory(message.Content))
+            {
+                continue;
+            }
+
             switch (message.Role)
             {
                 case MessageRole.System:
@@ -659,5 +721,19 @@ public class AgentExecutionService(
         }
 
         return history;
+    }
+
+    private static bool HasToolMessages(IEnumerable<ConversationMessage> messages)
+        => messages.Any(message => message.Role == MessageRole.Tool);
+
+    internal static bool ShouldSkipAssistantMessageFromHistory(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            return true;
+        }
+
+        return string.Equals(content.Trim(), "Response status code does not indicate success: 400 (Bad Request).", StringComparison.Ordinal)
+            || content.Trim().StartsWith("Response status code does not indicate success:", StringComparison.Ordinal);
     }
 }

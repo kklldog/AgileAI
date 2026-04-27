@@ -108,6 +108,30 @@ public class AgentExecutionServiceTests
     }
 
     [Fact]
+    public async Task StreamMessageAsync_WithExplicitEmptyToolSelection_ShouldUsePlainChatWithoutApproval()
+    {
+        await using var harness = await AgentExecutionHarness.CreateAsync();
+        harness.Agent.EnableSkills = false;
+        harness.DbContext.AgentToolSelections.Add(new AgentToolSelection
+        {
+            AgentDefinitionId = harness.Agent.Id,
+            ToolNamesJson = "[]"
+        });
+        await harness.DbContext.SaveChangesAsync();
+
+        var httpContext = new DefaultHttpContext();
+        httpContext.Response.Body = new MemoryStream();
+
+        await harness.AgentExecutionService.StreamMessageAsync(harness.Conversation.Id, "tell me about the demo", httpContext.Response, CancellationToken.None);
+
+        httpContext.Response.Body.Position = 0;
+        var sse = Encoding.UTF8.GetString(((MemoryStream)httpContext.Response.Body).ToArray());
+        Assert.Contains("event: final-message", sse);
+        Assert.DoesNotContain("event: approval-required", sse);
+        Assert.DoesNotContain("Command approval required", sse);
+    }
+
+    [Fact]
     public async Task SendMessageAsync_WithApprovalRequiredTool_ShouldCreatePendingApprovalAndPersistAssistantPlaceholder()
     {
         await using var harness = await AgentExecutionHarness.CreateAsync();
@@ -118,14 +142,103 @@ public class AgentExecutionServiceTests
         var approval = await harness.DbContext.ToolApprovalRequests.SingleAsync();
         Assert.Equal(ToolApprovalStatus.Pending, approval.Status);
         Assert.Equal("run_local_command", approval.ToolName);
-        Assert.Contains("Command approval required for run_local_command", result.AssistantMessage.Content);
+        Assert.Contains("Tool approval required for run_local_command", result.AssistantMessage.Content);
 
         var assistant = (await harness.DbContext.Messages
             .Where(x => x.Role == MessageRole.Assistant)
             .ToListAsync())
             .OrderByDescending(x => x.CreatedAtUtc)
             .First();
-        Assert.Contains("Command approval required for run_local_command", assistant.Content);
+        Assert.Contains("Tool approval required for run_local_command", assistant.Content);
+    }
+
+    [Fact]
+    public void BuildRequestHistory_WithoutToolMessages_ShouldNotInjectToolInstructions()
+    {
+        var agent = new AgentDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "Assistant",
+            SystemPrompt = "You are helpful."
+        };
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            AgentDefinition = agent,
+            AgentDefinitionId = agent.Id,
+            Messages =
+            [
+                new ConversationMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Role = MessageRole.User,
+                    Content = "hello",
+                    CreatedAtUtc = DateTimeOffset.UtcNow
+                }
+            ]
+        };
+
+        var history = AgentExecutionService.BuildRequestHistory(conversation, agent);
+
+        Assert.Equal(ChatRole.System, history[0].Role);
+        Assert.Equal("You are helpful.", history[0].TextContent);
+    }
+
+    [Fact]
+    public void BuildRequestHistory_ShouldSkipEmptyAndErrorAssistantMessages()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var agent = new AgentDefinition
+        {
+            Id = Guid.NewGuid(),
+            Name = "Assistant",
+            SystemPrompt = "You are helpful."
+        };
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            AgentDefinition = agent,
+            AgentDefinitionId = agent.Id,
+            Messages =
+            [
+                new ConversationMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Role = MessageRole.User,
+                    Content = "hello",
+                    CreatedAtUtc = now
+                },
+                new ConversationMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Role = MessageRole.Assistant,
+                    Content = string.Empty,
+                    CreatedAtUtc = now.AddSeconds(1)
+                },
+                new ConversationMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Role = MessageRole.Assistant,
+                    Content = "Response status code does not indicate success: 400 (Bad Request).",
+                    CreatedAtUtc = now.AddSeconds(2)
+                },
+                new ConversationMessage
+                {
+                    Id = Guid.NewGuid(),
+                    Role = MessageRole.User,
+                    Content = "retry",
+                    CreatedAtUtc = now.AddSeconds(3)
+                }
+            ]
+        };
+
+        var history = AgentExecutionService.BuildRequestHistory(conversation, agent);
+
+        Assert.Equal(3, history.Count);
+        Assert.Collection(history,
+            item => Assert.Equal(ChatRole.System, item.Role),
+            item => Assert.Equal("hello", item.TextContent),
+            item => Assert.Equal("retry", item.TextContent));
     }
 
     private sealed class AgentExecutionHarness : IAsyncDisposable
