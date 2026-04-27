@@ -140,6 +140,7 @@ const AGENT_BATCH_SIZE = 12
 const visibleAgentCount = ref(AGENT_BATCH_SIZE)
 const agentListSentinel = ref<HTMLElement | null>(null)
 let agentListObserver: IntersectionObserver | null = null
+let shouldPopulateDefaultTools = false
 
 const form = reactive<AgentPayload>({
   studioModelId: '',
@@ -199,11 +200,13 @@ function resetForm() {
     selectedToolNames: store.agentTools.map((tool) => tool.name),
     allowedSkillNames: store.skills.map((skill) => skill.name),
   })
+  shouldPopulateDefaultTools = form.selectedToolNames.length === 0
 }
 
 function openModal(item?: AgentItem) {
   editing.value = item ?? null
   if (item) {
+    shouldPopulateDefaultTools = false
     Object.assign(form, {
       studioModelId: item.studioModelId,
       name: item.name,
@@ -214,7 +217,7 @@ function openModal(item?: AgentItem) {
       thinkingIntensity: item.thinkingIntensity ?? null,
       enableSkills: item.enableSkills,
       isPinned: item.isPinned,
-      selectedToolNames: item.selectedToolNames.length ? [...item.selectedToolNames] : store.agentTools.map((tool) => tool.name),
+      selectedToolNames: [...item.selectedToolNames],
       allowedSkillNames: item.allowedSkillNames.length ? [...item.allowedSkillNames] : store.skills.map((skill) => skill.name),
     })
   } else {
@@ -222,6 +225,17 @@ function openModal(item?: AgentItem) {
   }
   showModal.value = true
 }
+
+watch(
+  () => store.agentTools,
+  (tools) => {
+    if (!editing.value && showModal.value && shouldPopulateDefaultTools && form.selectedToolNames.length === 0 && tools.length > 0) {
+      form.selectedToolNames = tools.map((tool) => tool.name)
+      shouldPopulateDefaultTools = false
+    }
+  },
+  { deep: true },
+)
 
 watch(
   () => form.studioModelId,

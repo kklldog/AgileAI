@@ -35,8 +35,8 @@ public record AgentRequestDto(
     string? ThinkingIntensity,
     bool EnableSkills,
     bool IsPinned,
-    IReadOnlyList<string>? SelectedToolNames,
-    IReadOnlyList<string>? AllowedSkillNames);
+    IReadOnlyList<string> SelectedToolNames,
+    IReadOnlyList<string> AllowedSkillNames);
 
 public record ToolOptionDto(
     string Name,

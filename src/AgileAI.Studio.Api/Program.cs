@@ -152,13 +152,23 @@ app.MapGet("/api/skills", (SkillService skillService) =>
 
 app.MapPost("/api/agents", async (AgentRequestDto request, AgentService agentService, CancellationToken cancellationToken) =>
 {
-    var item = await agentService.CreateAgentAsync(request, cancellationToken);
+    var normalizedRequest = request with
+    {
+        SelectedToolNames = request.SelectedToolNames ?? [],
+        AllowedSkillNames = request.AllowedSkillNames ?? []
+    };
+    var item = await agentService.CreateAgentAsync(normalizedRequest, cancellationToken);
     return Results.Ok(item);
 });
 
 app.MapPut("/api/agents/{id:guid}", async (Guid id, AgentRequestDto request, AgentService agentService, CancellationToken cancellationToken) =>
 {
-    var item = await agentService.UpdateAgentAsync(id, request, cancellationToken);
+    var normalizedRequest = request with
+    {
+        SelectedToolNames = request.SelectedToolNames ?? [],
+        AllowedSkillNames = request.AllowedSkillNames ?? []
+    };
+    var item = await agentService.UpdateAgentAsync(id, normalizedRequest, cancellationToken);
     return Results.Ok(item);
 });
 
