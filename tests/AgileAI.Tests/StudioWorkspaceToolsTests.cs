@@ -54,6 +54,17 @@ public class StudioWorkspaceToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task WriteFileTool_ShouldRecoverContentFromUnterminatedJsonString()
+    {
+        var tool = new WriteFileTool(_pathGuard);
+
+        var result = await tool.ExecuteAsync(CreateContext("write_file", "{\"path\":\"tmp/snake.html\",\"content\":\"<html>\\n<body>snake"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("<html>\n<body>snake", await File.ReadAllTextAsync(Path.Combine(_workspaceRoot, "tmp", "snake.html")));
+    }
+
+    [Fact]
     public void RegisterFileSystemTools_ShouldMarkMutatingOperationsAsApprovalRequired()
     {
         var registry = new InMemoryToolRegistry()

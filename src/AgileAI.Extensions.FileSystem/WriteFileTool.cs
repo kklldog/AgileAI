@@ -23,8 +23,7 @@ public class WriteFileTool(FileSystemPathGuard pathGuard) : ITool
 
     public async Task<ToolResult> ExecuteAsync(ToolExecutionContext context, CancellationToken cancellationToken = default)
     {
-        var request = JsonSerializer.Deserialize<WriteFileRequest>(context.ToolCall.Arguments, JsonOptions())
-            ?? throw new InvalidOperationException("Invalid write_file arguments.");
+        var request = ParseRequest(context.ToolCall.Arguments);
 
         var resolvedPath = pathGuard.ResolvePath(request.Path);
         var directory = Path.GetDirectoryName(resolvedPath);
@@ -43,6 +42,87 @@ public class WriteFileTool(FileSystemPathGuard pathGuard) : ITool
     }
 
     private static JsonSerializerOptions JsonOptions() => new() { PropertyNameCaseInsensitive = true };
+
+    private static WriteFileRequest ParseRequest(string arguments)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<WriteFileRequest>(arguments, JsonOptions())
+                ?? throw new InvalidOperationException("Invalid write_file arguments.");
+        }
+        catch (JsonException ex)
+        {
+            var path = ExtractJsonString(arguments, "path");
+            var content = ExtractJsonString(arguments, "content", allowUnterminated: true);
+            if (string.IsNullOrWhiteSpace(path) || content == null)
+            {
+                throw new InvalidOperationException("Invalid write_file arguments.", ex);
+            }
+
+            return new WriteFileRequest(path, content);
+        }
+    }
+
+    private static string? ExtractJsonString(string json, string propertyName, bool allowUnterminated = false)
+    {
+        var propertyToken = $"\"{propertyName}\"";
+        var propertyIndex = json.IndexOf(propertyToken, StringComparison.OrdinalIgnoreCase);
+        if (propertyIndex < 0)
+        {
+            return null;
+        }
+
+        var colonIndex = json.IndexOf(':', propertyIndex + propertyToken.Length);
+        if (colonIndex < 0)
+        {
+            return null;
+        }
+
+        var startQuoteIndex = json.IndexOf('"', colonIndex + 1);
+        if (startQuoteIndex < 0)
+        {
+            return null;
+        }
+
+        var value = new System.Text.StringBuilder();
+        var escaped = false;
+        for (var index = startQuoteIndex + 1; index < json.Length; index++)
+        {
+            var current = json[index];
+            if (escaped)
+            {
+                value.Append(current switch
+                {
+                    '"' => '"',
+                    '\\' => '\\',
+                    '/' => '/',
+                    'b' => '\b',
+                    'f' => '\f',
+                    'n' => '\n',
+                    'r' => '\r',
+                    't' => '\t',
+                    _ => current
+                });
+                escaped = false;
+                continue;
+            }
+
+            if (current == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (current == '"')
+            {
+                return value.ToString();
+            }
+
+            value.Append(current);
+        }
+
+        return allowUnterminated ? value.ToString() : null;
+    }
 
     private sealed record WriteFileRequest(string Path, string Content);
 }
